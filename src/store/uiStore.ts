@@ -255,6 +255,23 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'planner-ui-storage',
+      storage: {
+        getItem: (name) => {
+          if (typeof window === 'undefined') return null;
+          const item = localStorage.getItem(name);
+          return item ? JSON.parse(item) : null;
+        },
+        setItem: (name, value) => {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(name, JSON.stringify(value));
+          }
+        },
+        removeItem: (name) => {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(name);
+          }
+        },
+      },
       partialize: (state) => ({
         selectedPlanTypes: state.selectedPlanTypes,
         viewMode: state.viewMode,

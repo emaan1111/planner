@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useEvents } from './useEventsQuery';
 import { useConstraints } from './useConstraintsQuery';
 import { useUIStore } from '@/store/uiStore';
@@ -94,15 +94,19 @@ export function useConstraintChecker() {
   const { data: events = [] } = useEvents();
   const { data: constraints = [] } = useConstraints();
   const setViolations = useUIStore((state) => state.setViolations);
+  const prevViolationsRef = useRef<string>('');
 
   const violations = useMemo(() => {
-    const newViolations = checkConstraints(events, constraints);
-    return newViolations;
+    return checkConstraints(events, constraints);
   }, [events, constraints]);
 
-  // Update violations in UI store whenever they change
-  useMemo(() => {
-    setViolations(violations);
+  // Update violations in UI store only when they actually change
+  useEffect(() => {
+    const violationsKey = JSON.stringify(violations.map(v => v.eventId + v.constraintId));
+    if (violationsKey !== prevViolationsRef.current) {
+      prevViolationsRef.current = violationsKey;
+      setViolations(violations);
+    }
   }, [violations, setViolations]);
 
   return violations;
