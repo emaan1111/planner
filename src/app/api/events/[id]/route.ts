@@ -36,21 +36,24 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    // Only include fields that are actually provided
+    const updateData: Record<string, unknown> = {};
+    
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.startDate !== undefined) updateData.startDate = new Date(body.startDate);
+    if (body.endDate !== undefined) updateData.endDate = new Date(body.endDate);
+    if (body.planType !== undefined) updateData.planType = body.planType;
+    if (body.color !== undefined) updateData.color = body.color;
+    if (body.isAllDay !== undefined) updateData.isAllDay = body.isAllDay;
+    if (body.tags !== undefined) updateData.tags = body.tags;
+    if (body.priority !== undefined) updateData.priority = body.priority;
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.notes !== undefined) updateData.notes = body.notes;
+
     const event = await prisma.event.update({
       where: { id },
-      data: {
-        title: body.title,
-        description: body.description,
-        startDate: body.startDate ? new Date(body.startDate) : undefined,
-        endDate: body.endDate ? new Date(body.endDate) : undefined,
-        planType: body.planType,
-        color: body.color,
-        isAllDay: body.isAllDay,
-        tags: body.tags,
-        priority: body.priority,
-        status: body.status,
-        notes: body.notes,
-      },
+      data: updateData,
     });
 
     return NextResponse.json(event);

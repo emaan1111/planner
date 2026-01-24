@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { initialPlanTypes } from '@/types';
 
 // GET all plan types
 export async function GET() {
   try {
-    const planTypes = await prisma.planType.findMany({
+    let planTypes = await prisma.planType.findMany({
       orderBy: { createdAt: 'asc' },
     });
+
+    // Seed default plan types if none exist
+    if (planTypes.length === 0) {
+      await prisma.planType.createMany({
+        data: initialPlanTypes.map(pt => ({
+          name: pt.name,
+          label: pt.label,
+          color: pt.color,
+          icon: pt.icon ?? 'Star',
+        })),
+      });
+      planTypes = await prisma.planType.findMany({
+        orderBy: { createdAt: 'asc' },
+      });
+    }
 
     return NextResponse.json(planTypes);
   } catch (error) {

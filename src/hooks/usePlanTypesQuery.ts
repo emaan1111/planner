@@ -1,19 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PlanTypeConfig, initialPlanTypes } from '@/types';
+import { PlanTypeConfig } from '@/types';
 
 // API functions
 async function fetchPlanTypes(): Promise<PlanTypeConfig[]> {
   const response = await fetch('/api/plan-types');
   if (!response.ok) throw new Error('Failed to fetch plan types');
-  const data = await response.json();
-  // If no plan types exist, return initial defaults
-  if (data.length === 0) {
-    return initialPlanTypes.map((pt, idx) => ({
-      ...pt,
-      id: `default-${idx}`,
-    }));
-  }
-  return data;
+  return response.json();
 }
 
 async function createPlanType(planType: Omit<PlanTypeConfig, 'id'>): Promise<PlanTypeConfig> {
