@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Plan Events (calendar items)
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  planType    String
+  color       String
+  isAllDay    Boolean  @default(false)
+  tags        String[] @default([])
+  priority    String?  // low, medium, high, urgent
+  status      String   @default("planned") // planned, in-progress, completed, cancelled
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tasks       Task[]
+  decisions   Decision[]
+}
+
+// Tasks linked to plan types or events
+model Task {
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  status         String   @default("todo") // todo, in-progress, done
+  priority       String   @default("medium") // low, medium, high
+  dueDate        DateTime?
+  linkedPlanType String?
+  linkedEventId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  linkedEvent    Event?   @relation(fields: [linkedEventId], references: [id], onDelete: SetNull)
+}
+
+// Key Decisions
+model Decision {
+  id             String    @id @default(cuid())
+  title          String
+  description    String?
+  status         String    @default("pending") // pending, decided, deferred
+  outcome        String?
+  linkedPlanType String?
+  linkedEventId  String?
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  linkedEvent    Event?    @relation(fields: [linkedEventId], references: [id], onDelete: SetNull)
+}
+
+// Plan Types (all user-configurable, no default/custom distinction)
+model PlanType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  label     String
+  color     String
+  icon      String   @default("Star")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Constraints for scheduling rules
+model Constraint {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // date-range, no-overlap, dependency, resource, custom
+  description String
+  ruleType    String
+  ruleParams  Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Planning Context for AI assistance
+model PlanningContext {
+  id          String   @id @default(cuid())
+  type        String   // constraint, assumption, goal, preference, note
+  title       String
+  description String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// AI Assistant Messages (optional - for chat history)
+model AIMessage {
+  id         String   @id @default(cuid())
+  role       String   // user, assistant
+  content    String
+  createdAt  DateTime @default(now())
+}

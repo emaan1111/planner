@@ -1,0 +1,492 @@
+'use client';
+
+import { motion, AnimatePresence } from 'framer-motion';
+import { format, isSameMonth, isToday, isWeekend, startOfWeek, endOfWeek, eachDayOfInterval, differenceInDays, isSameDay, isWithinInterval, startOfDay, addDays } from 'date-fns';
+import { usePlannerStore } from '@/store/plannerStore';
+import { PlanEvent, colorClasses } from '@/types';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import clsx from 'clsx';
+import { EventContextMenu } from './EventContextMenu';
+import { EventTooltip } from '@/components/ui/EventTooltip';
+
+interface ResizeState {
+  eventId: string;
+  edge: 'start' | 'end';
+  initialDate: Date;
+  currentDate: Date;
+}
+
+interface DragState {
+  eventId: string;
+  initialDate: Date;
+  currentDate: Date;
+}
+
+interface TooltipState {
+  event: PlanEvent;
+  position: { x: number; y: number };
+}
+
+export function MonthView() {
+  const { currentDate, getEventsForDate, moveEvent, resizeEvent, openEventModal, events, selectedPlanTypes, deleteEvent, cutEvent, copyEvent, duplicateEvent, clipboardEvent, pasteEvent, setCurrentDate } = usePlannerStore();
+  
+  const [resizing, setResizing] = useState<ResizeState | null>(null);
+  const [dragging, setDragging] = useState<DragState | null>(null);
+  const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ event: PlanEvent; position: { x: number; y: number } } | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const tooltipTimeout = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const days = useMemo(() => {
+    const start = startOfWeek(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1), { weekStartsOn: 1 });
+    const end = endOfWeek(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0), { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [currentDate]);
+
+  // Get all filtered events
+  const filteredEvents = useMemo(() => {
+    return events.filter(e => selectedPlanTypes.includes(e.planType));
+  }, [events, selectedPlanTypes]);
+
+  // Calculate which events span multiple days and their positions
+  const getEventSpan = useCallback((event: PlanEvent, weekStart: Date, weekEnd: Date) => {
+    const eventStart = startOfDay(new Date(event.startDate));
+    const eventEnd = startOfDay(new Date(event.endDate));
+    
+    const displayStart = eventStart < weekStart ? weekStart : eventStart;
+    const displayEnd = eventEnd > weekEnd ? weekEnd : eventEnd;
+    
+    const startCol = differenceInDays(displayStart, weekStart);
+    const span = differenceInDays(displayEnd, displayStart) + 1;
+    
+    const startsBeforeWeek = eventStart < weekStart;
+    const endsAfterWeek = eventEnd > weekEnd;
+    
+    return { startCol, span, startsBeforeWeek, endsAfterWeek, displayStart, displayEnd };
+  }, []);
+
+  // Group days into weeks
+  const weeks = useMemo(() => {
+    const result: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) {
+      result.push(days.slice(i, i + 7));
+    }
+    return result;
+  }, [days]);
+
+  // Get events for a week
+  const getWeekEvents = useCallback((weekStart: Date, weekEnd: Date) => {
+    return filteredEvents.filter(event => {
+      const eventStart = startOfDay(new Date(event.startDate));
+      const eventEnd = startOfDay(new Date(event.endDate));
+      return (eventStart <= weekEnd && eventEnd >= weekStart);
+    });
+  }, [filteredEvents]);
+
+  // Handle mouse move during resize/drag
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!containerRef.current) return;
+    
+    // Find which cell the mouse is over
+    let foundDate: Date | null = null;
+    cellRefs.current.forEach((cell, dateStr) => {
+      const rect = cell.getBoundingClientRect();
+      if (e.clientX >= rect.left && e.clientX <= rect.right && 
+          e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        foundDate = new Date(dateStr);
+      }
+    });
+    
+    if (foundDate) {
+      setHoveredDate(foundDate);
+      
+      if (resizing) {
+        setResizing(prev => prev ? { ...prev, currentDate: foundDate! } : null);
+      }
+      if (dragging) {
+        setDragging(prev => prev ? { ...prev, currentDate: foundDate! } : null);
+      }
+    }
+  }, [resizing, dragging]);
+
+  // Handle mouse up to complete resize/drag
+  const handleMouseUp = useCallback(() => {
+    if (resizing) {
+      const event = events.find(e => e.id === resizing.eventId);
+      if (event) {
+        const eventStart = new Date(event.startDate);
+        const eventEnd = new Date(event.endDate);
+        
+        if (resizing.edge === 'start') {
+          const newStart = startOfDay(resizing.currentDate);
+          if (newStart <= eventEnd) {
+            resizeEvent(event.id, newStart, eventEnd);
+          }
+        } else {
+          const newEnd = startOfDay(resizing.currentDate);
+          if (newEnd >= eventStart) {
+            resizeEvent(event.id, eventStart, newEnd);
+          }
+        }
+      }
+      setResizing(null);
+    }
+    
+    if (dragging) {
+      const event = events.find(e => e.id === dragging.eventId);
+      if (event) {
+        const daysDiff = differenceInDays(dragging.currentDate, dragging.initialDate);
+        const newStart = addDays(new Date(event.startDate), daysDiff);
+        const newEnd = addDays(new Date(event.endDate), daysDiff);
+        moveEvent(event.id, newStart, newEnd);
+      }
+      setDragging(null);
+    }
+    
+    setHoveredDate(null);
+  }, [resizing, dragging, events, resizeEvent, moveEvent]);
+
+  // Add/remove global event listeners
+  useEffect(() => {
+    if (resizing || dragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [resizing, dragging, handleMouseMove, handleMouseUp]);
+
+  const handleResizeStart = (e: React.MouseEvent, eventId: string, edge: 'start' | 'end', date: Date) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setResizing({ eventId, edge, initialDate: date, currentDate: date });
+  };
+
+  const handleDragStart = (e: React.MouseEvent, eventId: string, date: Date) => {
+    e.stopPropagation();
+    setDragging({ eventId, initialDate: date, currentDate: date });
+  };
+
+  // Single click to select date, double click to create event
+  const handleDayClick = (date: Date) => {
+    if (!resizing && !dragging) {
+      setCurrentDate(date);
+    }
+  };
+
+  const handleDayDoubleClick = (date: Date) => {
+    if (!resizing && !dragging) {
+      setCurrentDate(date);
+      openEventModal();
+    }
+  };
+
+  const handleEventClick = (e: React.MouseEvent, event: PlanEvent) => {
+    e.stopPropagation();
+    if (!resizing && !dragging) {
+      setTooltip(null);
+      openEventModal(event);
+    }
+  };
+
+  const handleEventMouseEnter = (e: React.MouseEvent, event: PlanEvent) => {
+    // Clear any existing timeout
+    if (tooltipTimeout.current) {
+      clearTimeout(tooltipTimeout.current);
+    }
+    // Show tooltip after a short delay
+    tooltipTimeout.current = setTimeout(() => {
+      setTooltip({
+        event,
+        position: { x: e.clientX, y: e.clientY },
+      });
+    }, 500);
+  };
+
+  const handleEventMouseLeave = () => {
+    if (tooltipTimeout.current) {
+      clearTimeout(tooltipTimeout.current);
+    }
+    setTooltip(null);
+  };
+
+  const handleEventContextMenu = (e: React.MouseEvent, event: PlanEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTooltip(null);
+    setContextMenu({
+      event,
+      position: { x: e.clientX, y: e.clientY },
+    });
+  };
+
+  const handleDayContextMenu = (e: React.MouseEvent, date: Date) => {
+    if (clipboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      pasteEvent(startOfDay(date));
+    }
+  };
+
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  // Calculate preview for resize/drag
+  const getPreviewSpan = useCallback((event: PlanEvent) => {
+    if (resizing && resizing.eventId === event.id) {
+      const eventStart = new Date(event.startDate);
+      const eventEnd = new Date(event.endDate);
+      
+      if (resizing.edge === 'start') {
+        return { start: resizing.currentDate, end: eventEnd };
+      } else {
+        return { start: eventStart, end: resizing.currentDate };
+      }
+    }
+    
+    if (dragging && dragging.eventId === event.id) {
+      const daysDiff = differenceInDays(dragging.currentDate, dragging.initialDate);
+      return {
+        start: addDays(new Date(event.startDate), daysDiff),
+        end: addDays(new Date(event.endDate), daysDiff)
+      };
+    }
+    
+    return null;
+  }, [resizing, dragging]);
+
+  return (
+    <motion.div
+      ref={containerRef}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className={clsx(
+        "bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-800",
+        (resizing || dragging) && "select-none"
+      )}
+    >
+      {/* Week day headers */}
+      <div className="grid grid-cols-7 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+        {weekDays.map((day) => (
+          <div
+            key={day}
+            className="py-3 text-center text-sm font-semibold text-gray-600 dark:text-gray-400"
+          >
+            {day}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar weeks */}
+      {weeks.map((week, weekIndex) => {
+        const weekStart = week[0];
+        const weekEnd = week[6];
+        const weekEvents = getWeekEvents(weekStart, weekEnd);
+        
+        // Sort events by start date and duration for consistent stacking
+        const sortedEvents = [...weekEvents].sort((a, b) => {
+          const startDiff = new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+          if (startDiff !== 0) return startDiff;
+          const aDuration = differenceInDays(new Date(a.endDate), new Date(a.startDate));
+          const bDuration = differenceInDays(new Date(b.endDate), new Date(b.startDate));
+          return bDuration - aDuration; // Longer events first
+        });
+
+        return (
+          <div key={weekIndex} className="relative">
+            {/* Day cells */}
+            <div className="grid grid-cols-7">
+              {week.map((date) => {
+                const dayIsToday = isToday(date);
+                const dayIsWeekend = isWeekend(date);
+                const isCurrentMonth = isSameMonth(date, currentDate);
+                const isHovered = hoveredDate && isSameDay(date, hoveredDate);
+
+                return (
+                  <div
+                    key={date.toISOString()}
+                    ref={(el) => {
+                      if (el) cellRefs.current.set(date.toISOString(), el);
+                    }}
+                    onClick={() => handleDayClick(date)}
+                    onDoubleClick={() => handleDayDoubleClick(date)}
+                    onContextMenu={(e) => handleDayContextMenu(e, date)}
+                    className={clsx(
+                      'min-h-[120px] p-2 border-b border-r border-gray-100 dark:border-gray-800 transition-colors cursor-pointer',
+                      !isCurrentMonth && 'bg-gray-50 dark:bg-gray-900/50',
+                      dayIsWeekend && isCurrentMonth && 'bg-gray-50/50 dark:bg-gray-900/30',
+                      'hover:bg-gray-100 dark:hover:bg-gray-800/50',
+                      isHovered && (resizing || dragging) && 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 ring-inset',
+                      clipboardEvent && 'hover:ring-2 hover:ring-green-400 hover:ring-inset'
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span
+                        className={clsx(
+                          'text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full',
+                          dayIsToday && 'bg-blue-500 text-white',
+                          !dayIsToday && !isCurrentMonth && 'text-gray-400 dark:text-gray-600',
+                          !dayIsToday && isCurrentMonth && 'text-gray-700 dark:text-gray-300'
+                        )}
+                      >
+                        {format(date, 'd')}
+                      </span>
+                    </div>
+                    
+                    {/* Spacer for multi-day events */}
+                    <div className="h-[calc(100%-32px)]" />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Multi-day events overlay */}
+            <div className="absolute top-10 left-0 right-0 pointer-events-none">
+              <AnimatePresence>
+                {sortedEvents.map((event, eventIndex) => {
+                  const preview = getPreviewSpan(event);
+                  const effectiveStart = preview ? preview.start : new Date(event.startDate);
+                  const effectiveEnd = preview ? preview.end : new Date(event.endDate);
+                  
+                  const { startCol, span, startsBeforeWeek, endsAfterWeek } = getEventSpan(
+                    { ...event, startDate: effectiveStart, endDate: effectiveEnd },
+                    weekStart,
+                    weekEnd
+                  );
+                  
+                  if (span <= 0 || startCol < 0 || startCol > 6) return null;
+                  
+                  const colors = colorClasses[event.color];
+                  const isBeingModified = (resizing?.eventId === event.id) || (dragging?.eventId === event.id);
+                  const isMultiDay = differenceInDays(effectiveEnd, effectiveStart) > 0;
+
+                  return (
+                    <motion.div
+                      key={event.id}
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      style={{
+                        left: `${(startCol / 7) * 100}%`,
+                        width: `${(Math.min(span, 7 - startCol) / 7) * 100}%`,
+                        top: `${eventIndex * 28}px`,
+                      }}
+                      className={clsx(
+                        'absolute h-6 pointer-events-auto group',
+                        isBeingModified && 'z-50'
+                      )}
+                    >
+                      <div
+                        onMouseDown={(e) => handleDragStart(e, event.id, effectiveStart)}
+                        onClick={(e) => handleEventClick(e, event)}
+                        onContextMenu={(e) => handleEventContextMenu(e, event)}
+                        onMouseEnter={(e) => handleEventMouseEnter(e, event)}
+                        onMouseLeave={handleEventMouseLeave}
+                        className={clsx(
+                          'h-full mx-0.5 rounded-md flex items-center text-white text-xs font-medium cursor-grab active:cursor-grabbing transition-all relative overflow-hidden',
+                          colors.bg,
+                          'hover:shadow-lg hover:scale-[1.02]',
+                          isBeingModified && 'shadow-xl scale-[1.02] ring-2 ring-white/50',
+                          !startsBeforeWeek && 'rounded-l-md pl-2',
+                          !endsAfterWeek && 'rounded-r-md pr-2',
+                          startsBeforeWeek && 'rounded-l-none pl-1',
+                          endsAfterWeek && 'rounded-r-none pr-1'
+                        )}
+                      >
+                        {/* Left resize handle */}
+                        {!startsBeforeWeek && (
+                          <div
+                            onMouseDown={(e) => handleResizeStart(e, event.id, 'start', effectiveStart)}
+                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-gradient-to-r from-white/30 to-transparent hover:from-white/50 transition-opacity"
+                            title="Drag to resize start"
+                          />
+                        )}
+                        
+                        <span className="truncate flex-1 px-1">
+                          {!startsBeforeWeek && event.title}
+                          {startsBeforeWeek && !endsAfterWeek && event.title}
+                        </span>
+                        
+                        {/* Duration indicator */}
+                        {isMultiDay && !endsAfterWeek && (
+                          <span className="text-[10px] opacity-75 mr-1">
+                            {differenceInDays(effectiveEnd, effectiveStart) + 1}d
+                          </span>
+                        )}
+                        
+                        {/* Right resize handle */}
+                        {!endsAfterWeek && (
+                          <div
+                            onMouseDown={(e) => handleResizeStart(e, event.id, 'end', effectiveEnd)}
+                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-gradient-to-l from-white/30 to-transparent hover:from-white/50 transition-opacity"
+                            title="Drag to resize end"
+                          />
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Resize/Drag indicator */}
+      <AnimatePresence>
+        {(resizing || dragging) && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full shadow-xl z-50 text-sm font-medium"
+          >
+            {resizing ? (
+              <>Resizing: {format(resizing.currentDate, 'MMM d, yyyy')}</>
+            ) : dragging ? (
+              <>Moving to: {format(dragging.currentDate, 'MMM d, yyyy')}</>
+            ) : null}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Clipboard indicator */}
+      <AnimatePresence>
+        {clipboardEvent && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-xl z-50 text-sm font-medium flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <span>Right-click on a day to paste &quot;{clipboardEvent.title}&quot;</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Event Context Menu */}
+      <EventContextMenu
+        event={contextMenu?.event || null}
+        position={contextMenu?.position || null}
+        onClose={() => setContextMenu(null)}
+        onDelete={deleteEvent}
+        onCut={cutEvent}
+        onCopy={copyEvent}
+        onDuplicate={duplicateEvent}
+      />
+
+      {/* Event Tooltip */}
+      <EventTooltip
+        event={tooltip?.event || null}
+        position={tooltip?.position || null}
+      />
+    </motion.div>
+  );
+}
