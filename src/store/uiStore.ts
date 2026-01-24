@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   ViewMode,
   PlanType,
@@ -255,23 +255,16 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'planner-ui-storage',
-      storage: {
-        getItem: (name) => {
-          if (typeof window === 'undefined') return null;
-          const item = localStorage.getItem(name);
-          return item ? JSON.parse(item) : null;
-        },
-        setItem: (name, value) => {
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(name, JSON.stringify(value));
-          }
-        },
-        removeItem: (name) => {
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem(name);
-          }
-        },
-      },
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') {
+          return {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+          };
+        }
+        return localStorage;
+      }),
       partialize: (state) => ({
         selectedPlanTypes: state.selectedPlanTypes,
         viewMode: state.viewMode,
@@ -279,7 +272,7 @@ export const useUIStore = create<UIState>()(
         planningContext: state.planningContext,
         savedCustomViews: state.savedCustomViews,
         currentCustomViewMonths: state.currentCustomViewMonths,
-      }),
+      } as UIState),
     }
   )
 );
