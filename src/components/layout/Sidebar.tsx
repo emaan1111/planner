@@ -1,7 +1,11 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents } from '@/hooks/useEventsQuery';
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasksQuery';
+import { useDecisions, useCreateDecision, useUpdateDecision, useDeleteDecision } from '@/hooks/useDecisionsQuery';
+import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { PlanType, colorClasses, EventColor, Task, KeyDecision } from '@/types';
 import { Plus, Filter, ChevronDown, Star, Trash2, Brain, Lightbulb, CheckSquare, Check, Circle, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
@@ -16,20 +20,54 @@ export function Sidebar() {
     selectedPlanTypes,
     togglePlanType,
     openEventModal,
-    planTypes,
-    addPlanType,
-    deletePlanType,
     openPlanningContextModal,
-    tasks,
-    addTask,
-    updateTask,
-    deleteTask,
-    decisions,
-    addDecision,
-    updateDecision,
-    deleteDecision,
-    events,
-  } = usePlannerStore();
+  } = useUIStore();
+
+  const { data: planTypes = [] } = usePlanTypes();
+  const { data: events = [] } = useEvents();
+  const { data: tasks = [] } = useTasks();
+  const { data: decisions = [] } = useDecisions();
+  
+  const createPlanTypeMutation = useCreatePlanType();
+  const deletePlanTypeMutation = useDeletePlanType();
+  const createTaskMutation = useCreateTask();
+  const updateTaskMutation = useUpdateTask();
+  const deleteTaskMutation = useDeleteTask();
+  const createDecisionMutation = useCreateDecision();
+  const updateDecisionMutation = useUpdateDecision();
+  const deleteDecisionMutation = useDeleteDecision();
+  
+  const addPlanType = (pt: { name: string; label: string; color: EventColor; icon: string }) => {
+    createPlanTypeMutation.mutate(pt);
+  };
+  
+  const deletePlanType = (id: string) => {
+    deletePlanTypeMutation.mutate(id);
+  };
+  
+  const addTask = (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+    createTaskMutation.mutate(task);
+  };
+  
+  const updateTask = (id: string, updates: Partial<Task>) => {
+    updateTaskMutation.mutate({ id, updates });
+  };
+  
+  const deleteTask = (id: string) => {
+    deleteTaskMutation.mutate(id);
+  };
+  
+  const addDecision = (decision: Omit<KeyDecision, 'id' | 'createdAt' | 'updatedAt'>) => {
+    createDecisionMutation.mutate(decision);
+  };
+  
+  const updateDecision = (id: string, updates: Partial<KeyDecision>) => {
+    updateDecisionMutation.mutate({ id, updates });
+  };
+  
+  const deleteDecision = (id: string) => {
+    deleteDecisionMutation.mutate(id);
+  };
 
   const [showFilters, setShowFilters] = useState(true);
   const [showTasks, setShowTasks] = useState(true);

@@ -1,7 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useDecisions, useCreateDecision, useUpdateDecision, useDeleteDecision } from '@/hooks/useDecisionsQuery';
+import { useEvents } from '@/hooks/useEventsQuery';
+import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { KeyDecision } from '@/types';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -22,14 +24,25 @@ import {
 } from 'lucide-react';
 
 export default function DecisionsPage() {
-  const { 
-    decisions, 
-    addDecision, 
-    updateDecision, 
-    deleteDecision,
-    events,
-    planTypes,
-  } = usePlannerStore();
+  const { data: decisions = [] } = useDecisions();
+  const { data: events = [] } = useEvents();
+  const { data: planTypes = [] } = usePlanTypes();
+  
+  const createDecisionMutation = useCreateDecision();
+  const updateDecisionMutation = useUpdateDecision();
+  const deleteDecisionMutation = useDeleteDecision();
+  
+  const addDecision = (decision: Omit<KeyDecision, 'id' | 'createdAt' | 'updatedAt'>) => {
+    createDecisionMutation.mutate(decision);
+  };
+  
+  const updateDecision = (id: string, updates: Partial<KeyDecision>) => {
+    updateDecisionMutation.mutate({ id, updates });
+  };
+  
+  const deleteDecision = (id: string) => {
+    deleteDecisionMutation.mutate(id);
+  };
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');

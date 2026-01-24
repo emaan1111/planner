@@ -2,7 +2,8 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday, isSameDay, differenceInDays, addDays, startOfDay, isWithinInterval, min, max } from 'date-fns';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents, useUpdateEvent, useDeleteEvent, useCreateEvent } from '@/hooks/useEventsQuery';
 import { PlanEvent, colorClasses } from '@/types';
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import clsx from 'clsx';
@@ -73,7 +74,8 @@ function CompactMonth({
   onResizeStart,
   cellRefs 
 }: CompactMonthProps) {
-  const { getEventsForDate, events, selectedPlanTypes } = usePlannerStore();
+  const { selectedPlanTypes } = useUIStore();
+  const { data: events = [] } = useEvents();
   
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
@@ -115,6 +117,15 @@ function CompactMonth({
       const aDuration = differenceInDays(new Date(a.endDate), new Date(a.startDate));
       const bDuration = differenceInDays(new Date(b.endDate), new Date(b.startDate));
       return bDuration - aDuration;
+    });
+  }, [monthEvents]);
+
+  // Get events for a specific date
+  const getEventsForDate = useCallback((date: Date) => {
+    return monthEvents.filter(event => {
+      const eventStart = startOfDay(new Date(event.startDate));
+      const eventEnd = startOfDay(new Date(event.endDate));
+      return date >= eventStart && date <= eventEnd;
     });
   }, [monthEvents]);
 
@@ -368,17 +379,43 @@ export function SixMonthView() {
   const { 
     currentDate, 
     openEventModal, 
-    events, 
-    moveEvent, 
-    resizeEvent,
     setCurrentDate,
-    deleteEvent, 
     cutEvent, 
     copyEvent, 
-    duplicateEvent, 
     clipboardEvent, 
-    pasteEvent 
-  } = usePlannerStore();
+    clearClipboard 
+  } = useUIStore();
+
+  const { data: events = [] } = useEvents();
+  const updateEventMutation = useUpdateEvent();
+  const deleteEventMutation = useDeleteEvent();
+  const createEventMutation = useCreateEvent();
+  
+  const moveEvent = useCallback((id: string, startDate: Date, endDate: Date) => {
+    updateEventMutation.mutate({ id, updates: { startDate, endDate } });
+  }, [updateEventMutation]);
+  
+  const resizeEvent = useCallback((id: string, startDate: Date, endDate: Date) => {
+    updateEventMutation.mutate({ id, updates: { startDate, endDate } });
+  }, [updateEventMutation]);
+  
+  const deleteEvent = useCallback((id: string) => {
+    deleteEventMutation.mutate(id);
+  }, [deleteEventMutation]);
+  
+  const duplicateEvent = useCallback((event: PlanEvent) => {
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...eventData } = event;
+    createEventMutation.mutate(eventData);
+  }, [createEventMutation]);
+  
+  const pasteEvent = useCallback((targetDate: Date) => {
+    if (!clipboardEvent) return;
+    const duration = differenceInDays(new Date(clipboardEvent.endDate), new Date(clipboardEvent.startDate));
+    const newEndDate = addDays(targetDate, duration);
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...eventData } = clipboardEvent;
+    createEventMutation.mutate({ ...eventData, startDate: targetDate, endDate: newEndDate });
+    clearClipboard();
+  }, [clipboardEvent, createEventMutation, clearClipboard]);
 
   const [dragSelection, setDragSelection] = useState<DragSelectionState | null>(null);
   const [eventDrag, setEventDrag] = useState<EventDragState | null>(null);

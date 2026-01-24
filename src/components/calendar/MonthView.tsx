@@ -1,8 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, isSameMonth, isToday, isWeekend, startOfWeek, endOfWeek, eachDayOfInterval, differenceInDays, isSameDay, isWithinInterval, startOfDay, addDays } from 'date-fns';
-import { usePlannerStore } from '@/store/plannerStore';
+import { format, isSameMonth, isToday, isWeekend, startOfWeek, endOfWeek, eachDayOfInterval, differenceInDays, isSameDay, startOfDay, addDays } from 'date-fns';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents, useUpdateEvent, useDeleteEvent, useCreateEvent } from '@/hooks/useEventsQuery';
 import { PlanEvent, colorClasses } from '@/types';
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import clsx from 'clsx';
@@ -28,7 +29,38 @@ interface TooltipState {
 }
 
 export function MonthView() {
-  const { currentDate, getEventsForDate, moveEvent, resizeEvent, openEventModal, events, selectedPlanTypes, deleteEvent, cutEvent, copyEvent, duplicateEvent, clipboardEvent, pasteEvent, setCurrentDate } = usePlannerStore();
+  const { currentDate, openEventModal, selectedPlanTypes, cutEvent, copyEvent, clipboardEvent, setCurrentDate, clearClipboard } = useUIStore();
+  const { data: events = [] } = useEvents();
+  const updateEventMutation = useUpdateEvent();
+  const deleteEventMutation = useDeleteEvent();
+  const createEventMutation = useCreateEvent();
+  
+  // Wrapper functions for mutations
+  const moveEvent = useCallback((id: string, startDate: Date, endDate: Date) => {
+    updateEventMutation.mutate({ id, updates: { startDate, endDate } });
+  }, [updateEventMutation]);
+  
+  const resizeEvent = useCallback((id: string, startDate: Date, endDate: Date) => {
+    updateEventMutation.mutate({ id, updates: { startDate, endDate } });
+  }, [updateEventMutation]);
+  
+  const deleteEvent = useCallback((id: string) => {
+    deleteEventMutation.mutate(id);
+  }, [deleteEventMutation]);
+  
+  const duplicateEvent = useCallback((event: PlanEvent) => {
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...eventData } = event;
+    createEventMutation.mutate(eventData);
+  }, [createEventMutation]);
+  
+  const pasteEvent = useCallback((targetDate: Date) => {
+    if (!clipboardEvent) return;
+    const duration = differenceInDays(new Date(clipboardEvent.endDate), new Date(clipboardEvent.startDate));
+    const newEndDate = addDays(targetDate, duration);
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...eventData } = clipboardEvent;
+    createEventMutation.mutate({ ...eventData, startDate: targetDate, endDate: newEndDate });
+    clearClipboard();
+  }, [clipboardEvent, createEventMutation, clearClipboard]);
   
   const [resizing, setResizing] = useState<ResizeState | null>(null);
   const [dragging, setDragging] = useState<DragState | null>(null);

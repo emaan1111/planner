@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { format, addMonths } from 'date-fns';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
 import { ViewMode } from '@/types';
 import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, Grid3X3, Settings2, Sparkles, Menu } from 'lucide-react';
 import clsx from 'clsx';
@@ -27,7 +27,7 @@ export function CalendarHeader() {
     toggleSidebar,
     isAIAssistantOpen,
     violations,
-  } = usePlannerStore();
+  } = useUIStore();
 
   const getTitle = () => {
     switch (viewMode) {

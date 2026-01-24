@@ -1,7 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasksQuery';
+import { useEvents } from '@/hooks/useEventsQuery';
+import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { Task } from '@/types';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -22,14 +24,25 @@ import {
 } from 'lucide-react';
 
 export default function TasksPage() {
-  const { 
-    tasks, 
-    addTask, 
-    updateTask, 
-    deleteTask,
-    events,
-    planTypes,
-  } = usePlannerStore();
+  const { data: tasks = [] } = useTasks();
+  const { data: events = [] } = useEvents();
+  const { data: planTypes = [] } = usePlanTypes();
+  
+  const createTaskMutation = useCreateTask();
+  const updateTaskMutation = useUpdateTask();
+  const deleteTaskMutation = useDeleteTask();
+  
+  const addTask = (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+    createTaskMutation.mutate(task);
+  };
+  
+  const updateTask = (id: string, updates: Partial<Task>) => {
+    updateTaskMutation.mutate({ id, updates });
+  };
+  
+  const deleteTask = (id: string) => {
+    deleteTaskMutation.mutate(id);
+  };
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');

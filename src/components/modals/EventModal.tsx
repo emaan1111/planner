@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/useEventsQuery';
+import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { PlanEvent, PlanType, EventColor, colorClasses, RecurrencePattern } from '@/types';
 import { X, Calendar, Clock, Tag, Flag, Palette, Trash2, Copy, Save, Sparkles, Repeat, ChevronDown } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
@@ -33,13 +35,30 @@ export function EventModal() {
     closeEventModal,
     selectedEvent,
     newEventDateRange,
-    addEvent,
-    updateEvent,
-    deleteEvent,
-    duplicateEvent,
     currentDate,
-    planTypes,
-  } = usePlannerStore();
+  } = useUIStore();
+
+  const { data: planTypes = [] } = usePlanTypes();
+  const createEventMutation = useCreateEvent();
+  const updateEventMutation = useUpdateEvent();
+  const deleteEventMutation = useDeleteEvent();
+  
+  const addEvent = (event: Omit<PlanEvent, 'id' | 'createdAt' | 'updatedAt'>) => {
+    createEventMutation.mutate(event);
+  };
+  
+  const updateEvent = (id: string, updates: Partial<PlanEvent>) => {
+    updateEventMutation.mutate({ id, updates });
+  };
+  
+  const deleteEvent = (id: string) => {
+    deleteEventMutation.mutate(id);
+  };
+  
+  const duplicateEvent = (event: PlanEvent) => {
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...eventData } = event;
+    createEventMutation.mutate(eventData);
+  };
 
   // Get the first plan type as default, or 'custom' if none exist
   const defaultPlanType = planTypes.length > 0 ? planTypes[0].name : 'custom';
@@ -175,20 +194,14 @@ export function EventModal() {
     if (selectedEvent) {
       const title = selectedEvent.title;
       deleteEvent(selectedEvent.id);
-      toast.success(`Deleted "${title}"`, {
-        label: 'Undo',
-        onClick: () => {
-          // Undo is handled by the undo system
-          usePlannerStore.getState().undo();
-        },
-      });
+      toast.success(`Deleted "${title}"`);
       closeEventModal();
     }
   };
 
   const handleDuplicate = () => {
     if (selectedEvent) {
-      duplicateEvent(selectedEvent.id);
+      duplicateEvent(selectedEvent);
       toast.success(`Duplicated "${selectedEvent.title}"`);
       closeEventModal();
     }

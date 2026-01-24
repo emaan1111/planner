@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
 import { CalendarHeader, MonthView, MultiMonthView, SixMonthView, CustomMonthView, YearView } from '@/components/calendar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { AIAssistant } from '@/components/ai/AIAssistant';
@@ -9,23 +9,17 @@ import { EventModal } from '@/components/modals/EventModal';
 import { PlanningContextModal } from '@/components/modals/PlanningContextModal';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { ToastContainer } from '@/components/ui/Toast';
-import { useDataSync } from '@/hooks/useDataSync';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useEffect } from 'react';
+import { useConstraintChecker } from '@/hooks/useConstraintChecker';
 
 export default function Home() {
-  const { viewMode, checkConstraints, isFullscreen } = usePlannerStore();
+  const { viewMode, isFullscreen } = useUIStore();
   
   // Enable keyboard shortcuts
   useKeyboardShortcuts();
   
-  // Sync data with database
-  useDataSync();
-
-  useEffect(() => {
-    // Check constraints on initial load
-    checkConstraints();
-  }, [checkConstraints]);
+  // Check constraints whenever events or constraints change
+  useConstraintChecker();
 
   const renderCalendarView = () => {
     switch (viewMode) {

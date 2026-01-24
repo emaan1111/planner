@@ -17,7 +17,7 @@ interface EventContextMenuProps {
   onDelete: (eventId: string) => void;
   onCut: (event: PlanEvent) => void;
   onCopy: (event: PlanEvent) => void;
-  onDuplicate: (eventId: string) => void;
+  onDuplicate: (event: PlanEvent) => void;
 }
 
 export function EventContextMenu({
@@ -93,7 +93,7 @@ export function EventContextMenu({
       ),
       shortcut: '⌘D',
       onClick: () => {
-        onDuplicate(event.id);
+        onDuplicate(event);
         onClose();
       },
     },

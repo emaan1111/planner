@@ -2,7 +2,8 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday, isSameDay, differenceInDays, addDays, startOfDay, isWithinInterval, min, max, setMonth, setYear, getMonth, getYear } from 'date-fns';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents, useUpdateEvent, useDeleteEvent, useCreateEvent } from '@/hooks/useEventsQuery';
 import { PlanEvent, colorClasses, SavedCustomViewMonth } from '@/types';
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import clsx from 'clsx';
@@ -148,8 +149,18 @@ function CompactMonth({
   onSizeChange,
   cellRefs 
 }: CompactMonthProps) {
-  const { getEventsForDate, events, selectedPlanTypes } = usePlannerStore();
+  const { selectedPlanTypes } = useUIStore();
+  const { data: events = [] } = useEvents();
   const [isResizing, setIsResizing] = useState(false);
+  
+  // Helper function to get events for a date
+  const getEventsForDate = (date: Date) => {
+    return events.filter(
+      (event) =>
+        selectedPlanTypes.includes(event.planType) &&
+        isWithinInterval(date, { start: event.startDate, end: event.endDate })
+    );
+  };
   
   // Handle resize from edges/corners
   const handleResizeStart = useCallback((direction: ResizeDirection, e: React.MouseEvent) => {
@@ -499,16 +510,11 @@ const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep
 export function CustomMonthView() {
   const { 
     openEventModal, 
-    events, 
-    moveEvent, 
-    resizeEvent,
     setCurrentDate,
-    deleteEvent, 
     cutEvent, 
     copyEvent, 
-    duplicateEvent, 
     clipboardEvent, 
-    pasteEvent,
+    clearClipboard,
     savedCustomViews,
     saveCustomView,
     updateCustomView,
@@ -517,7 +523,38 @@ export function CustomMonthView() {
     setCurrentCustomViewMonths,
     isFullscreen,
     toggleFullscreen,
-  } = usePlannerStore();
+  } = useUIStore();
+
+  const { data: events = [] } = useEvents();
+  const updateEventMutation = useUpdateEvent();
+  const deleteEventMutation = useDeleteEvent();
+  const createEventMutation = useCreateEvent();
+  
+  const moveEvent = useCallback((id: string, startDate: Date, endDate: Date) => {
+    updateEventMutation.mutate({ id, updates: { startDate, endDate } });
+  }, [updateEventMutation]);
+  
+  const resizeEvent = useCallback((id: string, startDate: Date, endDate: Date) => {
+    updateEventMutation.mutate({ id, updates: { startDate, endDate } });
+  }, [updateEventMutation]);
+  
+  const deleteEvent = useCallback((id: string) => {
+    deleteEventMutation.mutate(id);
+  }, [deleteEventMutation]);
+  
+  const duplicateEvent = useCallback((event: PlanEvent) => {
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...eventData } = event;
+    createEventMutation.mutate(eventData);
+  }, [createEventMutation]);
+  
+  const pasteEvent = useCallback((targetDate: Date) => {
+    if (!clipboardEvent) return;
+    const duration = differenceInDays(new Date(clipboardEvent.endDate), new Date(clipboardEvent.startDate));
+    const newEndDate = addDays(targetDate, duration);
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...eventData } = clipboardEvent;
+    createEventMutation.mutate({ ...eventData, startDate: targetDate, endDate: newEndDate });
+    clearClipboard();
+  }, [clipboardEvent, createEventMutation, clearClipboard]);
 
   const [selectedMonths, setSelectedMonths] = useState<SelectedMonth[]>(() => {
     // Restore from persisted state if available

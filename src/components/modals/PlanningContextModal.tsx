@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
+import { useConstraints, useCreateConstraint, useDeleteConstraint, useToggleConstraint } from '@/hooks/useConstraintsQuery';
 import { PlanningContext } from '@/types';
 import { X, Plus, Trash2, Target, Lightbulb, AlertTriangle, Settings, FileText, Check } from 'lucide-react';
 import clsx from 'clsx';
@@ -24,11 +25,24 @@ export function PlanningContextModal() {
     updatePlanningContext,
     deletePlanningContext,
     togglePlanningContext,
-    constraints,
-    addConstraint,
-    deleteConstraint,
-    toggleConstraint,
-  } = usePlannerStore();
+  } = useUIStore();
+  
+  const { data: constraints = [] } = useConstraints();
+  const createConstraintMutation = useCreateConstraint();
+  const deleteConstraintMutation = useDeleteConstraint();
+  const toggleConstraintMutation = useToggleConstraint();
+  
+  const addConstraint = (constraint: Omit<import('@/types').Constraint, 'id'>) => {
+    createConstraintMutation.mutate(constraint);
+  };
+  
+  const deleteConstraint = (id: string) => {
+    deleteConstraintMutation.mutate(id);
+  };
+  
+  const toggleConstraint = (id: string) => {
+    toggleConstraintMutation.mutate(id);
+  };
 
   const [isAdding, setIsAdding] = useState(false);
   const [newContext, setNewContext] = useState<{

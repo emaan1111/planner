@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/useEventsQuery';
+import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
+import { useConstraints } from '@/hooks/useConstraintsQuery';
 import { Sparkles, Send, X, Loader2, Lightbulb, Calendar, AlertCircle, Wand2, Play, Check } from 'lucide-react';
 import clsx from 'clsx';
-import { EventColor } from '@/types';
+import { EventColor, PlanEvent } from '@/types';
 
 const quickPrompts = [
   { icon: Calendar, label: 'Plan my marketing for next month', prompt: 'Help me create a marketing plan for next month with email campaigns, social media posts, and content releases.' },
@@ -28,17 +31,39 @@ export function AIAssistant() {
     addAIMessage,
     isAILoading,
     setAILoading,
-    events,
-    constraints,
     violations,
     planningContext,
-    planTypes,
-    addEvent,
-    updateEvent,
-    deleteEvent,
-    addPlanType,
-    deletePlanType,
-  } = usePlannerStore();
+  } = useUIStore();
+
+  const { data: events = [] } = useEvents();
+  const { data: planTypes = [] } = usePlanTypes();
+  const { data: constraints = [] } = useConstraints();
+  
+  const createEventMutation = useCreateEvent();
+  const updateEventMutation = useUpdateEvent();
+  const deleteEventMutation = useDeleteEvent();
+  const createPlanTypeMutation = useCreatePlanType();
+  const deletePlanTypeMutation = useDeletePlanType();
+  
+  const addEvent = useCallback((event: Omit<PlanEvent, 'id' | 'createdAt' | 'updatedAt'>) => {
+    createEventMutation.mutate(event);
+  }, [createEventMutation]);
+  
+  const updateEvent = useCallback((id: string, updates: Partial<PlanEvent>) => {
+    updateEventMutation.mutate({ id, updates });
+  }, [updateEventMutation]);
+  
+  const deleteEvent = useCallback((id: string) => {
+    deleteEventMutation.mutate(id);
+  }, [deleteEventMutation]);
+  
+  const addPlanType = useCallback((pt: { name: string; label: string; color: EventColor; icon: string }) => {
+    createPlanTypeMutation.mutate(pt);
+  }, [createPlanTypeMutation]);
+  
+  const deletePlanType = useCallback((id: string) => {
+    deletePlanTypeMutation.mutate(id);
+  }, [deletePlanTypeMutation]);
 
   const [input, setInput] = useState('');
   const [pendingActions, setPendingActions] = useState<AIAction[]>([]);

@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents } from '@/hooks/useEventsQuery';
+import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { Search, Calendar, Plus, Clock, Tag, ArrowRight, Command } from 'lucide-react';
 import { format } from 'date-fns';
 import clsx from 'clsx';
@@ -25,7 +27,6 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const {
-    events,
     openEventModal,
     goToToday,
     goToNextPeriod,
@@ -34,8 +35,10 @@ export function CommandPalette() {
     toggleSidebar,
     toggleAIAssistant,
     setCurrentDate,
-    planTypes,
-  } = usePlannerStore();
+  } = useUIStore();
+  
+  const { data: events = [] } = useEvents();
+  const { data: planTypes = [] } = usePlanTypes();
 
   // Open with Cmd+K
   useEffect(() => {

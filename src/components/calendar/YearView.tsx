@@ -1,8 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, addMonths, startOfYear, eachMonthOfInterval, endOfYear, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday } from 'date-fns';
-import { usePlannerStore } from '@/store/plannerStore';
+import { format, addMonths, startOfYear, eachMonthOfInterval, endOfYear, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday, isWithinInterval } from 'date-fns';
+import { useUIStore } from '@/store/uiStore';
+import { useEvents } from '@/hooks/useEventsQuery';
 import { PlanEvent, colorClasses } from '@/types';
 import { useMemo } from 'react';
 import clsx from 'clsx';
@@ -13,7 +14,26 @@ interface YearMonthProps {
 }
 
 function YearMonth({ monthDate, onClick }: YearMonthProps) {
-  const { getEventsForDate, getEventsForDateRange } = usePlannerStore();
+  const { selectedPlanTypes } = useUIStore();
+  const { data: events = [] } = useEvents();
+  
+  const getEventsForDate = (date: Date) => {
+    return events.filter(
+      (event) =>
+        selectedPlanTypes.includes(event.planType) &&
+        isWithinInterval(date, { start: event.startDate, end: event.endDate })
+    );
+  };
+  
+  const getEventsForDateRange = (start: Date, end: Date) => {
+    return events.filter(
+      (event) =>
+        selectedPlanTypes.includes(event.planType) &&
+        (isWithinInterval(event.startDate, { start, end }) ||
+          isWithinInterval(event.endDate, { start, end }) ||
+          (event.startDate <= start && event.endDate >= end))
+    );
+  };
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
@@ -106,7 +126,7 @@ function YearMonth({ monthDate, onClick }: YearMonthProps) {
 }
 
 export function YearView() {
-  const { currentDate, setCurrentDate, setViewMode } = usePlannerStore();
+  const { currentDate, setCurrentDate, setViewMode } = useUIStore();
 
   const months = useMemo(() => {
     const yearStart = startOfYear(currentDate);

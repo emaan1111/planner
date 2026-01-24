@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { usePlannerStore } from '@/store/plannerStore';
+import { useUIStore } from '@/store/uiStore';
 
 export function useKeyboardShortcuts() {
   const {
@@ -13,11 +13,7 @@ export function useKeyboardShortcuts() {
     goToToday,
     toggleSidebar,
     toggleAIAssistant,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = usePlannerStore();
+  } = useUIStore();
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Ignore if typing in an input, textarea, or contenteditable
@@ -43,24 +39,6 @@ export function useKeyboardShortcuts() {
       if (isEventModalOpen) {
         e.preventDefault();
         closeEventModal();
-      }
-      return;
-    }
-
-    // Cmd+Z - Undo
-    if (cmdKey && e.key === 'z' && !e.shiftKey) {
-      e.preventDefault();
-      if (canUndo()) {
-        undo();
-      }
-      return;
-    }
-
-    // Cmd+Shift+Z or Cmd+Y - Redo
-    if (cmdKey && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
-      e.preventDefault();
-      if (canRedo()) {
-        redo();
       }
       return;
     }
@@ -128,10 +106,6 @@ export function useKeyboardShortcuts() {
     goToToday,
     toggleSidebar,
     toggleAIAssistant,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
   ]);
 
   useEffect(() => {
