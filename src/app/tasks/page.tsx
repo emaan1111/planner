@@ -5,7 +5,7 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useReorderTasks 
 import { useEvents } from '@/hooks/useEventsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { Task } from '@/types';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { DndContext, closestCenter, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
@@ -26,6 +26,11 @@ import {
   Search,
   GripVertical
 } from 'lucide-react';
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
 
 // Helper functions for task display
 const getStatusIcon = (status: Task['status']) => {
@@ -221,18 +226,49 @@ export default function TasksPage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkPlanType, setBulkPlanType] = useState<string>('');
   const [bulkPriority, setBulkPriority] = useState<Task['priority'] | ''>('');
+  const [pwaPrompt, setPwaPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showPwaPrompt, setShowPwaPrompt] = useState(false);
 
   const allPlanTypes = planTypes.map(pt => pt.name);
 
+  useEffect(() => {
+    const handleBeforeInstall = (event: Event) => {
+      event.preventDefault();
+      setPwaPrompt(event as BeforeInstallPromptEvent);
+      setShowPwaPrompt(true);
+    };
+
+    const handleInstalled = () => {
+      setShowPwaPrompt(false);
+      setPwaPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleInstalled);
+    };
+  }, []);
+
+  const handlePwaInstall = useCallback(async () => {
+    if (!pwaPrompt) return;
+    await pwaPrompt.prompt();
+    await pwaPrompt.userChoice;
+    setShowPwaPrompt(false);
+    setPwaPrompt(null);
+  }, [pwaPrompt]);
+
   const handleAddTask = () => {
-    if (newTitle.trim() && newPlanType) {
+    if (newTitle.trim()) {
       addTask({
         title: newTitle.trim(),
         description: newDescription.trim() || undefined,
         status: 'todo',
         priority: newPriority,
         dueDate: newDueDate ? new Date(newDueDate) : undefined,
-        linkedPlanType: newPlanType,
+        linkedPlanType: newPlanType || undefined,
         linkedEventId: newEventId || undefined,
       });
       setNewTitle('');
@@ -399,6 +435,34 @@ export default function TasksPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-4">
+        {showPwaPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+          >
+            <div>
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">Install Planner</p>
+              <p className="text-xs text-blue-700 dark:text-blue-200">
+                Add the app to your home screen for quick access and offline use.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowPwaPrompt(false)}
+                className="px-3 py-1.5 text-sm text-blue-700 dark:text-blue-200 hover:text-blue-900 dark:hover:text-blue-100"
+              >
+                Not now
+              </button>
+              <button
+                onClick={handlePwaInstall}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+              >
+                Install
+              </button>
+            </div>
+          </motion.div>
+        )}
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3 mb-4">
           <motion.div
@@ -792,19 +856,19 @@ export default function TasksPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Plan Type *
-                  </label>
-                  <select
-                    value={newPlanType}
-                    onChange={(e) => setNewPlanType(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select a plan type</option>
-                    {allPlanTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
+                      Plan Type
+                    </label>
+                    <select
+                      value={newPlanType}
+                      onChange={(e) => setNewPlanType(e.target.value)}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    >
+                      <option value="">No plan type</option>
+                      {allPlanTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Link to Event
@@ -832,7 +896,7 @@ export default function TasksPage() {
                 </button>
                 <button
                   onClick={handleAddTask}
-                  disabled={!newTitle.trim() || !newPlanType}
+                  disabled={!newTitle.trim()}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 transition-opacity"
                 >
                   Add Task

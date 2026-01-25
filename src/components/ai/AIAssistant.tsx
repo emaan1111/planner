@@ -8,7 +8,7 @@ import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/useP
 import { useConstraints } from '@/hooks/useConstraintsQuery';
 import { useTasks, useCreateTask } from '@/hooks/useTasksQuery';
 import { useProjects, useCreateProject } from '@/hooks/useProjectsQuery';
-import { Sparkles, Send, X, Loader2, Lightbulb, Calendar, AlertCircle, Wand2, Play, Check } from 'lucide-react';
+import { Sparkles, Send, X, Loader2, Lightbulb, Calendar, AlertCircle, Wand2, Play, Check, Brain } from 'lucide-react';
 import clsx from 'clsx';
 import { EventColor, PlanEvent, Project } from '@/types';
 
@@ -35,6 +35,7 @@ export function AIAssistant() {
     setAILoading,
     violations,
     planningContext,
+    openPlanningContextModal,
   } = useUIStore();
 
   const { data: events = [] } = useEvents();
@@ -294,14 +295,26 @@ export function AIAssistant() {
                 <p className="text-xs text-gray-500 dark:text-gray-400">Your smart planning assistant</p>
               </div>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={toggleAIAssistant}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </motion.button>
+            <div className="flex items-center gap-2">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={openPlanningContextModal}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title="AI Planning Context"
+              >
+                <Brain className="w-5 h-5 text-purple-500" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={toggleAIAssistant}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Close AI Planner"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </motion.button>
+            </div>
           </div>
 
           {/* Messages */}

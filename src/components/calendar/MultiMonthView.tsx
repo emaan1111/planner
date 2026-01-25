@@ -490,7 +490,7 @@ export function MultiMonthView() {
           clearTimeout(clickTimeout.current);
         }
         clickTimeout.current = setTimeout(() => {
-          router.push(`/day/${format(start, 'yyyy-MM-dd')}`);
+          openEventModal();
         }, 220);
       } else {
         setCurrentDate(start);
@@ -566,8 +566,8 @@ export function MultiMonthView() {
       clearTimeout(clickTimeout.current);
     }
     setCurrentDate(date);
-    openEventModal();
-  }, [setCurrentDate, openEventModal]);
+    router.push(`/day/${format(date, 'yyyy-MM-dd')}`);
+  }, [setCurrentDate, router]);
 
   const handleDayContextMenu = useCallback((date: Date, e: React.MouseEvent) => {
     if (clipboardEvent) {

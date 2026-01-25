@@ -3,14 +3,16 @@
 import { useState, useMemo } from 'react';
 import { useEvents, useDeleteEvent } from '@/hooks/useEventsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
-import { useProjects } from '@/hooks/useProjectsQuery';
+import { useProjects, useCreateProject } from '@/hooks/useProjectsQuery';
 import { useUIStore } from '@/store/uiStore';
-import { PlanEvent, colorClasses } from '@/types';
+import { PlanEvent, colorClasses, EventColor } from '@/types';
 import { format, isAfter, isBefore, isToday, startOfDay } from 'date-fns';
-import { Trash2, Edit2, ArrowUpDown, Search, ChevronLeft, FolderKanban } from 'lucide-react';
+import { Trash2, Edit2, ArrowUpDown, Search, ChevronLeft, FolderKanban, Plus, X } from 'lucide-react';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { EventModal } from '@/components/modals/EventModal';
+
+const colors: EventColor[] = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
 
 type SortField = 'title' | 'startDate' | 'planType' | 'priority';
 type SortDirection = 'asc' | 'desc';
@@ -21,6 +23,7 @@ export default function EventsListPage() {
   const { data: planTypes = [] } = usePlanTypes();
   const { data: projects = [] } = useProjects();
   const deleteEventMutation = useDeleteEvent();
+  const createProjectMutation = useCreateProject();
   const { openEventModal, isEventModalOpen } = useUIStore();
 
   const [sortField, setSortField] = useState<SortField>('startDate');
@@ -29,6 +32,17 @@ export default function EventsListPage() {
   const [filterPlanType, setFilterPlanType] = useState<string>('all');
   const [filterProject, setFilterProject] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectColor, setNewProjectColor] = useState<EventColor>('blue');
+
+  const handleAddProject = () => {
+    if (newProjectName.trim()) {
+      createProjectMutation.mutate({ name: newProjectName.trim(), color: newProjectColor });
+      setNewProjectName('');
+      setShowAddProject(false);
+    }
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -209,10 +223,71 @@ export default function EventsListPage() {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+              <button
+                onClick={() => setShowAddProject(true)}
+                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                title="Add Project"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Add Project Modal */}
+      {showAddProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 w-80">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Add Project</h3>
+              <button onClick={() => setShowAddProject(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Project name..."
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddProject();
+                if (e.key === 'Escape') setShowAddProject(false);
+              }}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-3"
+              autoFocus
+            />
+            <div className="flex gap-1.5 flex-wrap mb-3">
+              {colors.slice(0, 10).map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setNewProjectColor(color)}
+                  className={clsx(
+                    'w-6 h-6 rounded-full transition-all',
+                    colorClasses[color].bg,
+                    newProjectColor === color ? 'ring-2 ring-offset-2 ring-gray-400' : ''
+                  )}
+                />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddProject}
+                disabled={!newProjectName.trim()}
+                className="flex-1 py-1.5 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => setShowAddProject(false)}
+                className="px-3 py-1.5 text-gray-500 hover:text-gray-700 text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 py-3">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">

@@ -158,7 +158,7 @@ export function YearView() {
       clearTimeout(clickTimeout.current);
     }
     clickTimeout.current = setTimeout(() => {
-      router.push(`/day/${format(date, 'yyyy-MM-dd')}`);
+      openEventModal();
     }, 220);
   };
 
@@ -167,7 +167,7 @@ export function YearView() {
       clearTimeout(clickTimeout.current);
     }
     setCurrentDate(date);
-    openEventModal();
+    router.push(`/day/${format(date, 'yyyy-MM-dd')}`);
   };
 
   return (

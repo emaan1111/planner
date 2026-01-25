@@ -213,7 +213,7 @@ What would you like help with?`;
 📋 **Templates** - Get structured plan templates for common scenarios
 🎯 **Actions** - I can add, update, or delete events for you
 
-💡 Tip: Use the "AI Planning Context" button in the sidebar to define constraints and assumptions I should follow.
+💡 Tip: Use the "AI Planning Context" button in the AI Planner panel to define constraints and assumptions I should follow.
 
 What would you like help with?`;
 }

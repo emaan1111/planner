@@ -7,7 +7,7 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/u
 import { useDecisions, useCreateDecision, useUpdateDecision, useDeleteDecision } from '@/hooks/useDecisionsQuery';
 import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { PlanType, colorClasses, EventColor, Task, KeyDecision } from '@/types';
-import { Plus, Filter, ChevronDown, Star, Trash2, Brain, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List, GripVertical } from 'lucide-react';
+import { Plus, Filter, ChevronDown, Star, Trash2, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -20,8 +20,6 @@ export function Sidebar() {
     selectedPlanTypes,
     togglePlanType,
     syncPlanTypes,
-    openEventModal,
-    openPlanningContextModal,
     toggleTaskPanel,
     isTaskPanelOpen,
   } = useUIStore();
@@ -174,20 +172,10 @@ export function Sidebar() {
         >
           <div className="p-4 flex-1 overflow-y-auto">
             {/* Create button */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => openEventModal()}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-shadow"
-            >
-              <Plus className="w-5 h-5" />
-              Create Event
-            </motion.button>
-
             {/* View All Events Link */}
             <Link
               href="/events"
-              className="mt-2 w-full flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             >
               <List className="w-3.5 h-3.5" />
               <span>All Events</span>
@@ -339,28 +327,6 @@ export function Sidebar() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-
-            {/* AI Planning Context */}
-            <div className="mt-6">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={openPlanningContextModal}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border border-purple-200 dark:border-purple-800 transition-all"
-              >
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                  <Brain className="w-4 h-4 text-white" />
-                </div>
-                <div className="text-left">
-                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200 block">
-                    AI Planning Context
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Constraints &amp; assumptions
-                  </span>
-                </div>
-              </motion.button>
             </div>
 
             {/* Key Decisions */}

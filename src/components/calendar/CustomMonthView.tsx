@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday, isSameDay, differenceInDays, addDays, startOfDay, isWithinInterval, min, max, setMonth, setYear, getMonth, getYear } from 'date-fns';
+import { format, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday, isSameDay, differenceInDays, addDays, startOfDay, isWithinInterval, min, max, getMonth, getYear } from 'date-fns';
 import { useUIStore } from '@/store/uiStore';
 import { useEvents, useUpdateEvent, useDeleteEvent, useCreateEvent } from '@/hooks/useEventsQuery';
 import { PlanEvent, colorClasses, SavedCustomViewMonth } from '@/types';
@@ -652,7 +652,9 @@ export function CustomMonthView() {
   }, [selectedMonths]);
 
   const monthDates = useMemo(() => {
-    return sortedMonths.map(m => setMonth(setYear(new Date(), m.year), m.month));
+    // Use new Date(year, month, 1) to avoid day overflow issues
+    // (e.g., Jan 31 -> Feb would become Mar 3)
+    return sortedMonths.map(m => new Date(m.year, m.month, 1));
   }, [sortedMonths]);
 
   const handleMonthSizeChange = useCallback((year: number, month: number, newSize: CalendarSize) => {
@@ -767,7 +769,7 @@ export function CustomMonthView() {
           clearTimeout(clickTimeout.current);
         }
         clickTimeout.current = setTimeout(() => {
-          router.push(`/day/${format(start, 'yyyy-MM-dd')}`);
+          openEventModal();
         }, 220);
       } else {
         setCurrentDate(start);
@@ -842,8 +844,8 @@ export function CustomMonthView() {
       clearTimeout(clickTimeout.current);
     }
     setCurrentDate(date);
-    openEventModal();
-  }, [setCurrentDate, openEventModal]);
+    router.push(`/day/${format(date, 'yyyy-MM-dd')}`);
+  }, [setCurrentDate, router]);
 
   const handleDayContextMenu = useCallback((date: Date, e: React.MouseEvent) => {
     if (clipboardEvent) {
@@ -1178,7 +1180,8 @@ export function CustomMonthView() {
         )}>
           <AnimatePresence mode="popLayout">
             {sortedMonths.map((monthData) => {
-              const monthDate = setMonth(setYear(new Date(), monthData.year), monthData.month);
+              // Use new Date(year, month, 1) to avoid day overflow issues
+              const monthDate = new Date(monthData.year, monthData.month, 1);
               return (
                 <CompactMonth
                   key={`${monthData.year}-${monthData.month}`}
