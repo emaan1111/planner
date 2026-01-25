@@ -33,6 +33,8 @@ export function AIAssistant() {
     setAILoading,
     violations,
     planningContext,
+    syncPlanTypes,
+    selectedPlanTypes,
   } = useUIStore();
 
   const { data: events = [] } = useEvents();
@@ -47,7 +49,11 @@ export function AIAssistant() {
   
   const addEvent = useCallback((event: Omit<PlanEvent, 'id' | 'createdAt' | 'updatedAt'>) => {
     createEventMutation.mutate(event);
-  }, [createEventMutation]);
+    // Ensure the event's plan type is in the filter so it's visible
+    if (event.planType && !selectedPlanTypes.includes(event.planType)) {
+      syncPlanTypes([...selectedPlanTypes, event.planType]);
+    }
+  }, [createEventMutation, selectedPlanTypes, syncPlanTypes]);
   
   const updateEvent = useCallback((id: string, updates: Partial<PlanEvent>) => {
     updateEventMutation.mutate({ id, updates });
