@@ -92,7 +92,7 @@ export function DndProvider({ children }: DndProviderProps) {
     >
       {children}
       
-      <DragOverlay>
+      <DragOverlay className="z-[9999]">
         {activeTask && (
           <div className="bg-white dark:bg-gray-800 shadow-2xl rounded-lg p-3 border-2 border-blue-500 max-w-[200px]">
             <div className="flex items-center gap-2">

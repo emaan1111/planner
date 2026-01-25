@@ -66,17 +66,17 @@ function SortableTask({ task, onEdit, onDelete, isDragOverlay, planTypes }: Sort
     <div
       ref={setNodeRef}
       style={style}
+      {...listeners}
+      {...attributes}
       className={clsx(
-        'flex items-center gap-2 p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all border-l-4 group',
+        'flex items-center gap-2 p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all border-l-4 group cursor-grab active:cursor-grabbing touch-none',
         getPlanTypeBorderClass(task.linkedPlanType, planTypes),
         isDragging && !isDragOverlay && 'opacity-30',
         isDragOverlay && 'shadow-xl scale-105 opacity-95',
         'hover:bg-gray-50 dark:hover:bg-gray-700/50'
       )}
     >
-      <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing touch-none">
-        <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
-      </div>
+      <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
       <span className="flex-shrink-0">{getTaskStatusIcon(task.status)}</span>
       <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">
         {task.title}
@@ -88,6 +88,7 @@ function SortableTask({ task, onEdit, onDelete, isDragOverlay, planTypes }: Sort
               e.stopPropagation();
               onEdit(task);
             }}
+            onPointerDown={(e) => e.stopPropagation()}
             className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
             title="Edit task"
           >
@@ -98,6 +99,7 @@ function SortableTask({ task, onEdit, onDelete, isDragOverlay, planTypes }: Sort
               e.stopPropagation();
               onDelete(task.id);
             }}
+            onPointerDown={(e) => e.stopPropagation()}
             className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
             title="Delete task"
           >
@@ -151,16 +153,16 @@ function DraggableTask({ task, onEdit, onDelete, planTypes }: DraggableTaskProps
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -10 }}
+      {...listeners}
+      {...attributes}
       className={clsx(
-        'flex items-center gap-2 p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all border-l-4 group',
+        'flex items-center gap-2 p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all border-l-4 group cursor-grab active:cursor-grabbing touch-none',
         getPlanTypeBorderClass(task.linkedPlanType, planTypes),
         isDragging && 'opacity-50 shadow-lg scale-105',
         'hover:bg-gray-50 dark:hover:bg-gray-700/50'
       )}
     >
-      <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-        <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
-      </div>
+      <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
       <span className="flex-shrink-0">{getTaskStatusIcon(task.status)}</span>
       <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">
         {task.title}
@@ -171,6 +173,7 @@ function DraggableTask({ task, onEdit, onDelete, planTypes }: DraggableTaskProps
             e.stopPropagation();
             onEdit(task);
           }}
+          onPointerDown={(e) => e.stopPropagation()}
           className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
           title="Edit task"
         >
@@ -181,6 +184,7 @@ function DraggableTask({ task, onEdit, onDelete, planTypes }: DraggableTaskProps
             e.stopPropagation();
             onDelete(task.id);
           }}
+          onPointerDown={(e) => e.stopPropagation()}
           className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
           title="Delete task"
         >
