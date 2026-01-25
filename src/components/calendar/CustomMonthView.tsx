@@ -493,12 +493,12 @@ function CompactMonth({
                 })}
               </AnimatePresence>
               {/* Show +N more indicator if there are hidden events */}
-              {weekEvents.length > MAX_EVENTS_PER_WEEK && (
+              {weekEvents.length > maxEventsPerWeek && (
                 <div 
                   className="text-[8px] text-gray-500 dark:text-gray-400 font-medium pl-1 pointer-events-auto cursor-pointer hover:text-blue-500"
-                  style={{ marginTop: `${MAX_EVENTS_PER_WEEK * (EVENT_HEIGHT + EVENT_GAP)}px` }}
+                  style={{ marginTop: `${maxEventsPerWeek * (EVENT_HEIGHT + EVENT_GAP)}px` }}
                 >
-                  +{weekEvents.length - MAX_EVENTS_PER_WEEK} more
+                  +{weekEvents.length - maxEventsPerWeek} more
                 </div>
               )}
             </div>
@@ -516,6 +516,7 @@ function CompactMonth({
 }
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 export function CustomMonthView() {
   const { 
