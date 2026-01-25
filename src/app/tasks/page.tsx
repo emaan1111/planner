@@ -81,7 +81,8 @@ export default function TasksPage() {
   const cycleTaskStatus = (task: Task) => {
     const nextStatus: Record<Task['status'], Task['status']> = {
       'todo': 'in-progress',
-      'in-progress': 'done',
+      'in-progress': 'scheduled',
+      'scheduled': 'done',
       'done': 'todo',
     };
     updateTask(task.id, { status: nextStatus[task.status] });
@@ -95,9 +96,9 @@ export default function TasksPage() {
     return matchesStatus && matchesPriority && matchesSearch;
   });
 
-  // Sort: todo first, then in-progress, then done. Within each, high priority first
+  // Sort: todo first, then in-progress, then scheduled, then done. Within each, high priority first
   const sortedTasks = [...filteredTasks].sort((a, b) => {
-    const statusOrder = { 'todo': 0, 'in-progress': 1, 'done': 2 };
+    const statusOrder: Record<Task['status'], number> = { 'todo': 0, 'in-progress': 1, 'scheduled': 2, 'done': 3 };
     const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
     
     if (statusOrder[a.status] !== statusOrder[b.status]) {
@@ -110,6 +111,8 @@ export default function TasksPage() {
     switch (status) {
       case 'done':
         return <CheckCircle2 className="w-5 h-5 text-green-500" />;
+      case 'scheduled':
+        return <Circle className="w-5 h-5 text-purple-500 fill-purple-500" />;
       case 'in-progress':
         return <PlayCircle className="w-5 h-5 text-blue-500" />;
       default:
@@ -121,6 +124,8 @@ export default function TasksPage() {
     switch (status) {
       case 'done':
         return 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800';
+      case 'scheduled':
+        return 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800';
       case 'in-progress':
         return 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800';
       default:
@@ -248,6 +253,7 @@ export default function TasksPage() {
               <option value="all">All Status</option>
               <option value="todo">To Do</option>
               <option value="in-progress">In Progress</option>
+              <option value="scheduled">Scheduled</option>
               <option value="done">Done</option>
             </select>
             <select
@@ -334,6 +340,7 @@ export default function TasksPage() {
                             >
                               <option value="todo">To Do</option>
                               <option value="in-progress">In Progress</option>
+                              <option value="scheduled">Scheduled</option>
                               <option value="done">Done</option>
                             </select>
                             <button
