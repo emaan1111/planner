@@ -419,6 +419,43 @@ export function MonthView() {
           return bDuration - aDuration; // Longer events first
         });
 
+        // Calculate layout positions to pack events upwards
+        const eventRows = new Map<string, number>();
+        const occupied = new Set<string>(); // "row-col"
+
+        sortedEvents.forEach(event => {
+          const preview = getPreviewSpan(event);
+          const effectiveStart = preview ? preview.start : new Date(event.startDate);
+          const effectiveEnd = preview ? preview.end : new Date(event.endDate);
+          
+          const { startCol, span } = getEventSpan(
+            { ...event, startDate: effectiveStart, endDate: effectiveEnd },
+            weekStart,
+            weekEnd
+          );
+
+          if (span <= 0 || startCol < 0 || startCol > 6) return;
+
+          let rowIndex = 0;
+          let valid = false;
+
+          while (!valid) {
+            valid = true;
+            for (let i = 0; i < span; i++) {
+              if (occupied.has(`${rowIndex}-${startCol + i}`)) {
+                valid = false;
+                break;
+              }
+            }
+            if (!valid) rowIndex++;
+          }
+
+          eventRows.set(event.id, rowIndex);
+          for (let i = 0; i < span; i++) {
+            occupied.add(`${rowIndex}-${startCol + i}`);
+          }
+        });
+
         return (
           <div key={weekIndex} className="relative">
             {/* Day cells */}
@@ -495,6 +532,8 @@ export function MonthView() {
                   const isBeingModified = (resizing?.eventId === event.id) || (dragging?.eventId === event.id);
                   const isMultiDay = differenceInDays(effectiveEnd, effectiveStart) > 0;
 
+                  const row = eventRows.get(event.id) ?? 0;
+
                   return (
                     <motion.div
                       key={event.id}
@@ -504,7 +543,7 @@ export function MonthView() {
                       style={{
                         left: `${(startCol / 7) * 100}%`,
                         width: `${(Math.min(span, 7 - startCol) / 7) * 100}%`,
-                        top: `${eventIndex * 28}px`,
+                        top: `${row * 28}px`,
                       }}
                       className={clsx(
                         'absolute h-6 pointer-events-auto group',
