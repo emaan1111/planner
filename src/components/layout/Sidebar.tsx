@@ -9,7 +9,7 @@ import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/useP
 import { PlanType, colorClasses, EventColor, Task, KeyDecision } from '@/types';
 import { Plus, Filter, ChevronDown, Star, Trash2, Brain, Lightbulb, CheckSquare, Check, Circle, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 const colors: EventColor[] = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
@@ -19,6 +19,7 @@ export function Sidebar() {
     isSidebarOpen,
     selectedPlanTypes,
     togglePlanType,
+    syncPlanTypes,
     openEventModal,
     openPlanningContextModal,
   } = useUIStore();
@@ -27,6 +28,13 @@ export function Sidebar() {
   const { data: events = [] } = useEvents();
   const { data: tasks = [] } = useTasks();
   const { data: decisions = [] } = useDecisions();
+  
+  // Sync plan types to filter when they change
+  useEffect(() => {
+    if (planTypes.length > 0) {
+      syncPlanTypes(planTypes.map(pt => pt.name));
+    }
+  }, [planTypes, syncPlanTypes]);
   
   const createPlanTypeMutation = useCreatePlanType();
   const deletePlanTypeMutation = useDeletePlanType();

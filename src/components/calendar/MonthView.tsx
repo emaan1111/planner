@@ -79,6 +79,8 @@ export function MonthView() {
 
   // Get all filtered events
   const filteredEvents = useMemo(() => {
+    // Show all events if no filters selected, or filter by selected types
+    if (selectedPlanTypes.length === 0) return events;
     return events.filter(e => selectedPlanTypes.includes(e.planType));
   }, [events, selectedPlanTypes]);
 

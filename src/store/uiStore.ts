@@ -59,6 +59,7 @@ interface UIState {
   // Filter actions
   togglePlanType: (type: PlanType) => void;
   setSelectedPlanTypes: (types: PlanType[]) => void;
+  syncPlanTypes: (types: PlanType[]) => void;
   
   // UI actions
   openEventModal: (event?: PlanEvent, dateRange?: { startDate: Date; endDate: Date }) => void;
@@ -149,6 +150,15 @@ export const useUIStore = create<UIState>()(
         }));
       },
       setSelectedPlanTypes: (types) => set({ selectedPlanTypes: types }),
+      syncPlanTypes: (types) => {
+        set((state) => {
+          const newTypes = types.filter(t => !state.selectedPlanTypes.includes(t));
+          if (newTypes.length > 0) {
+            return { selectedPlanTypes: [...state.selectedPlanTypes, ...newTypes] };
+          }
+          return state;
+        });
+      },
       
       // UI actions
       openEventModal: (event, dateRange) => {
