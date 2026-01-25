@@ -37,7 +37,7 @@ Current Context:
 - Events: ${JSON.stringify(context.events || [])}
 - Constraints: ${JSON.stringify(context.constraints || [])}
 - Planning Context (user-defined rules/assumptions): ${JSON.stringify(context.planningContext || [])}
-- Custom Plan Types: ${JSON.stringify(context.customPlanTypes || [])}
+- Available Plan Types: ${JSON.stringify(context.planTypes || [])}
 - Violations: ${JSON.stringify(context.violations || [])}
 
 You can suggest actions to modify the calendar. When suggesting actions, format them as JSON in code blocks like:
@@ -56,12 +56,15 @@ You can suggest actions to modify the calendar. When suggesting actions, format 
 \`\`\`
 
 Available actions:
-- add_event: Create new event (requires: title, startDate, endDate, planType)
+- add_event: Create new event (requires: title, startDate, endDate, planType). IMPORTANT: planType MUST be one of the Available Plan Types listed above (use the "name" field).
 - update_event: Update event (requires: id, plus fields to update)
 - delete_event: Delete event (requires: id)
-- add_plan_type: Add custom plan type (requires: name, label)
+- add_plan_type: Add custom plan type (requires: name, label, color)
 
-IMPORTANT: Always respect the user's planning context (constraints, assumptions, goals, preferences).
+IMPORTANT: 
+- Always respect the user's planning context (constraints, assumptions, goals, preferences).
+- When creating events, ONLY use planType values from the Available Plan Types. If the user requests a plan type that doesn't exist, first suggest creating it with add_plan_type.
+- Use the color from the plan type when creating events.
 Be concise, actionable, and specific in your recommendations.`,
           },
           {
@@ -227,52 +230,69 @@ function parseActionsFromResponse(response: string): any[] {
 function generateActions(message: string, context: any): any[] {
   const actions: any[] = [];
   const lowerMessage = message.toLowerCase();
+  const planTypes = context.planTypes || [];
+  
+  // Get the first available plan type, or null if none exist
+  const getDefaultPlanType = () => planTypes.length > 0 ? planTypes[0] : null;
+  const findPlanType = (name: string) => planTypes.find((pt: any) => pt.name.toLowerCase().includes(name.toLowerCase()));
   
   // Generate sample actions based on common requests
   if (lowerMessage.includes('add') && lowerMessage.includes('event')) {
-    // Try to extract event details from the message
-    const today = new Date();
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    
-    actions.push({
-      action: 'add_event',
-      payload: {
-        title: 'New Event',
-        startDate: nextWeek.toISOString().split('T')[0],
-        endDate: nextWeek.toISOString().split('T')[0],
-        planType: 'meeting',
-        color: 'blue',
-      },
-      description: 'Create a new event next week',
-    });
-  }
-  
-  if (lowerMessage.includes('marketing') && (lowerMessage.includes('plan') || lowerMessage.includes('campaign'))) {
-    const today = new Date();
-    const events = [
-      { title: 'Marketing Campaign Kickoff', days: 7, type: 'marketing', color: 'purple' },
-      { title: 'Email Newsletter', days: 10, type: 'mailing', color: 'blue' },
-      { title: 'Social Media Blitz', days: 14, type: 'social', color: 'pink' },
-      { title: 'Content Publication', days: 21, type: 'content', color: 'green' },
-    ];
-    
-    events.forEach(event => {
-      const date = new Date(today);
-      date.setDate(date.getDate() + event.days);
+    const defaultPlanType = getDefaultPlanType();
+    if (defaultPlanType) {
+      const today = new Date();
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
       
       actions.push({
         action: 'add_event',
         payload: {
-          title: event.title,
-          startDate: date.toISOString().split('T')[0],
-          endDate: date.toISOString().split('T')[0],
-          planType: event.type,
-          color: event.color,
+          title: 'New Event',
+          startDate: nextWeek.toISOString().split('T')[0],
+          endDate: nextWeek.toISOString().split('T')[0],
+          planType: defaultPlanType.name,
+          color: defaultPlanType.color,
         },
-        description: `Add ${event.title}`,
+        description: 'Create a new event next week',
       });
-    });
+    }
+  }
+  
+  if (lowerMessage.includes('marketing') && (lowerMessage.includes('plan') || lowerMessage.includes('campaign'))) {
+    const today = new Date();
+    // Try to find matching plan types, fall back to first available
+    const marketingType = findPlanType('marketing') || getDefaultPlanType();
+    const mailingType = findPlanType('mailing') || findPlanType('email') || marketingType;
+    const socialType = findPlanType('social') || marketingType;
+    const contentType = findPlanType('content') || marketingType;
+    
+    if (marketingType) {
+      const events = [
+        { title: 'Marketing Campaign Kickoff', days: 7, planType: marketingType },
+        { title: 'Email Newsletter', days: 10, planType: mailingType },
+        { title: 'Social Media Blitz', days: 14, planType: socialType },
+        { title: 'Content Publication', days: 21, planType: contentType },
+      ];
+      
+      events.forEach(event => {
+        const date = new Date(today);
+        date.setDate(date.getDate() + event.days);
+        
+        if (event.planType) {
+          actions.push({
+            action: 'add_event',
+            payload: {
+              title: event.title,
+              startDate: date.toISOString().split('T')[0],
+              endDate: date.toISOString().split('T')[0],
+              planType: event.planType.name,
+              color: event.planType.color,
+            },
+            description: `Add ${event.title}`,
+          });
+        }
+      });
+    }
   }
   
   return actions;

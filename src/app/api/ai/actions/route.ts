@@ -36,12 +36,29 @@ export async function POST(request: NextRequest) {
     
     switch (action) {
       case 'add_event':
-        if (!payload.title || !payload.startDate || !payload.endDate || !payload.planType) {
+        if (!payload.title || !payload.startDate || !payload.endDate) {
           return NextResponse.json(
-            { error: 'add_event requires: title, startDate, endDate, planType' },
+            { error: 'add_event requires: title, startDate, endDate' },
             { status: 400 }
           );
         }
+        
+        // Validate plan type exists if provided
+        let eventColor = payload.color || 'blue';
+        if (payload.planType) {
+          const planType = await prisma.planType.findFirst({
+            where: { name: payload.planType as string },
+          });
+          if (!planType) {
+            return NextResponse.json(
+              { error: `Plan type "${payload.planType}" does not exist. Create it first with add_plan_type action.` },
+              { status: 400 }
+            );
+          }
+          // Use the plan type's color if not explicitly provided
+          eventColor = payload.color || planType.color;
+        }
+        
         result = await prisma.event.create({
           data: {
             title: payload.title,
@@ -49,7 +66,7 @@ export async function POST(request: NextRequest) {
             startDate: new Date(payload.startDate),
             endDate: new Date(payload.endDate),
             planType: payload.planType,
-            color: payload.color || 'blue',
+            color: eventColor,
             priority: payload.priority,
             status: payload.status || 'planned',
             notes: payload.notes,

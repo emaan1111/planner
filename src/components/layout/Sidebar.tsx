@@ -29,18 +29,12 @@ export function Sidebar() {
   const { data: tasks = [] } = useTasks();
   const { data: decisions = [] } = useDecisions();
   
-  // Sync plan types to filter when they change (including plan types used by events)
+  // Sync plan types to filter when they change
   useEffect(() => {
-    const planTypeNames = planTypes.map(pt => pt.name);
-    // Also include plan types used by events that may not be in the plan types table
-    const eventPlanTypes = events
-      .map(e => e.planType)
-      .filter((pt): pt is string => !!pt && !planTypeNames.includes(pt));
-    const allPlanTypes = [...new Set([...planTypeNames, ...eventPlanTypes])];
-    if (allPlanTypes.length > 0) {
-      syncPlanTypes(allPlanTypes);
+    if (planTypes.length > 0) {
+      syncPlanTypes(planTypes.map(pt => pt.name));
     }
-  }, [planTypes, events, syncPlanTypes]);
+  }, [planTypes, syncPlanTypes]);
   
   const createPlanTypeMutation = useCreatePlanType();
   const deletePlanTypeMutation = useDeletePlanType();
