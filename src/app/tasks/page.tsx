@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useReorderTasks } from '@/hooks/useTasksQuery';
 import { useEvents } from '@/hooks/useEventsQuery';
+import { useProjects } from '@/hooks/useProjectsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { Task } from '@/types';
 import { useState, useMemo, useCallback, useEffect } from 'react';
@@ -189,8 +190,9 @@ function SortableTaskCard({ task, linkedEvent, onCycleStatus, onUpdateStatus, on
 }
 
 export default function TasksPage() {
-  const { data: tasks = [] } = useTasks();
-  const { data: events = [] } = useEvents();
+  const { data: tasks = [], isError: isTasksError, error: tasksError } = useTasks();
+  const { data: events = [], isError: isEventsError, error: eventsError } = useEvents();
+  const { data: projects = [] } = useProjects();
   const { data: planTypes = [] } = usePlanTypes();
   
   const createTaskMutation = useCreateTask();
@@ -216,6 +218,7 @@ export default function TasksPage() {
   const [newPriority, setNewPriority] = useState<Task['priority']>('medium');
   const [newPlanType, setNewPlanType] = useState('');
   const [newEventId, setNewEventId] = useState('');
+  const [newProjectId, setNewProjectId] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [filterStatus, setFilterStatus] = useState<Task['status'] | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
@@ -230,6 +233,8 @@ export default function TasksPage() {
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
 
   const allPlanTypes = planTypes.map(pt => pt.name);
+  const loadErrorMessage = (error: unknown) =>
+    error instanceof Error && error.message ? error.message : 'Unknown error';
 
   useEffect(() => {
     const handleBeforeInstall = (event: Event) => {
@@ -270,12 +275,14 @@ export default function TasksPage() {
         dueDate: newDueDate ? new Date(newDueDate) : undefined,
         linkedPlanType: newPlanType || undefined,
         linkedEventId: newEventId || undefined,
+        projectId: newProjectId || undefined,
       });
       setNewTitle('');
       setNewDescription('');
       setNewPriority('medium');
       setNewPlanType('');
       setNewEventId('');
+      setNewProjectId('');
       setNewDueDate('');
       setShowAddForm(false);
     }
@@ -435,6 +442,12 @@ export default function TasksPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-4">
+        {(isTasksError || isEventsError) && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+            Failed to load data. {isTasksError && `Tasks: ${loadErrorMessage(tasksError)}.`}{' '}
+            {isEventsError && `Events: ${loadErrorMessage(eventsError)}.`}
+          </div>
+        )}
         {showPwaPrompt && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -884,6 +897,21 @@ export default function TasksPage() {
                       ))}
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Project
+                  </label>
+                  <select
+                    value={newProjectId}
+                    onChange={(e) => setNewProjectId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  >
+                    <option value="">No project</option>
+                    {projects.filter(p => p.isActive).map((project) => (
+                      <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

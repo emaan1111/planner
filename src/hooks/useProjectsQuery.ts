@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Project, EventColor } from '@/types';
+import { toast } from '@/components/ui/Toast';
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 
 // API functions
 async function fetchProjects(): Promise<Project[]> {
@@ -73,19 +79,16 @@ export function useCreateProject() {
     onMutate: async (newProject) => {
       await queryClient.cancelQueries({ queryKey: projectKeys.all });
       
-      const previousProjects = queryClient.getQueryData<Project[]>(projectKeys.all);
-      
-      if (previousProjects) {
-        const optimisticProject: Project = {
-          ...newProject,
-          id: 'temp-' + Date.now(),
-          color: newProject.color ?? 'blue',
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        queryClient.setQueryData<Project[]>(projectKeys.all, [...previousProjects, optimisticProject]);
-      }
+      const previousProjects = queryClient.getQueryData<Project[]>(projectKeys.all) ?? [];
+      const optimisticProject: Project = {
+        ...newProject,
+        id: 'temp-' + Date.now(),
+        color: newProject.color ?? 'blue',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      queryClient.setQueryData<Project[]>(projectKeys.all, [...previousProjects, optimisticProject]);
       
       return { previousProjects };
     },
@@ -93,6 +96,7 @@ export function useCreateProject() {
       if (context?.previousProjects) {
         queryClient.setQueryData(projectKeys.all, context.previousProjects);
       }
+      toast.error(getErrorMessage(_error, 'Failed to create project'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.all });
@@ -127,6 +131,7 @@ export function useUpdateProject() {
       if (context?.previousProjects) {
         queryClient.setQueryData(projectKeys.all, context.previousProjects);
       }
+      toast.error(getErrorMessage(_error, 'Failed to update project'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.all });
@@ -158,6 +163,7 @@ export function useDeleteProject() {
       if (context?.previousProjects) {
         queryClient.setQueryData(projectKeys.all, context.previousProjects);
       }
+      toast.error(getErrorMessage(_error, 'Failed to delete project'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.all });

@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
         linkedPlanType: body.linkedPlanType || null,
         linkedEventId: body.linkedEventId,
+        projectId: body.projectId || null,
         order: nextOrder,
       },
     });

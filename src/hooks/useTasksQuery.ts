@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Task } from '@/types';
+import { toast } from '@/components/ui/Toast';
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 
 // API functions
 async function fetchTasks(): Promise<Task[]> {
@@ -85,17 +91,14 @@ export function useCreateTask() {
     onMutate: async (newTask) => {
       await queryClient.cancelQueries({ queryKey: taskKeys.all });
       
-      const previousTasks = queryClient.getQueryData<Task[]>(taskKeys.all);
-      
-      if (previousTasks) {
-        const optimisticTask: Task = {
-          ...newTask,
-          id: 'temp-' + Date.now(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        queryClient.setQueryData<Task[]>(taskKeys.all, [...previousTasks, optimisticTask]);
-      }
+      const previousTasks = queryClient.getQueryData<Task[]>(taskKeys.all) ?? [];
+      const optimisticTask: Task = {
+        ...newTask,
+        id: 'temp-' + Date.now(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      queryClient.setQueryData<Task[]>(taskKeys.all, [...previousTasks, optimisticTask]);
       
       return { previousTasks };
     },
@@ -103,6 +106,7 @@ export function useCreateTask() {
       if (context?.previousTasks) {
         queryClient.setQueryData(taskKeys.all, context.previousTasks);
       }
+      toast.error(getErrorMessage(_error, 'Failed to create task'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
@@ -137,6 +141,7 @@ export function useUpdateTask() {
       if (context?.previousTasks) {
         queryClient.setQueryData(taskKeys.all, context.previousTasks);
       }
+      toast.error(getErrorMessage(_error, 'Failed to update task'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
@@ -168,6 +173,7 @@ export function useDeleteTask() {
       if (context?.previousTasks) {
         queryClient.setQueryData(taskKeys.all, context.previousTasks);
       }
+      toast.error(getErrorMessage(_error, 'Failed to delete task'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });

@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PlanEvent } from '@/types';
+import { toast } from '@/components/ui/Toast';
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 
 // API functions
 async function fetchEvents(): Promise<PlanEvent[]> {
@@ -82,18 +88,16 @@ export function useCreateEvent() {
       await queryClient.cancelQueries({ queryKey: eventKeys.all });
       
       // Snapshot previous value
-      const previousEvents = queryClient.getQueryData<PlanEvent[]>(eventKeys.all);
+      const previousEvents = queryClient.getQueryData<PlanEvent[]>(eventKeys.all) ?? [];
       
       // Optimistically add the new event
-      if (previousEvents) {
-        const optimisticEvent: PlanEvent = {
-          ...newEvent,
-          id: 'temp-' + Date.now(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        queryClient.setQueryData<PlanEvent[]>(eventKeys.all, [...previousEvents, optimisticEvent]);
-      }
+      const optimisticEvent: PlanEvent = {
+        ...newEvent,
+        id: 'temp-' + Date.now(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      queryClient.setQueryData<PlanEvent[]>(eventKeys.all, [...previousEvents, optimisticEvent]);
       
       return { previousEvents };
     },
@@ -102,6 +106,7 @@ export function useCreateEvent() {
       if (context?.previousEvents) {
         queryClient.setQueryData(eventKeys.all, context.previousEvents);
       }
+      toast.error(getErrorMessage(_error, 'Failed to create event'));
     },
     onSettled: () => {
       // Refetch after mutation
@@ -137,6 +142,7 @@ export function useUpdateEvent() {
       if (context?.previousEvents) {
         queryClient.setQueryData(eventKeys.all, context.previousEvents);
       }
+      toast.error(getErrorMessage(_error, 'Failed to update event'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: eventKeys.all });
@@ -168,6 +174,7 @@ export function useDeleteEvent() {
       if (context?.previousEvents) {
         queryClient.setQueryData(eventKeys.all, context.previousEvents);
       }
+      toast.error(getErrorMessage(_error, 'Failed to delete event'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: eventKeys.all });

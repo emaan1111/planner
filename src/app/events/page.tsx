@@ -19,7 +19,7 @@ type SortDirection = 'asc' | 'desc';
 type FilterStatus = 'all' | 'upcoming' | 'past' | 'today';
 
 export default function EventsListPage() {
-  const { data: events = [], isLoading } = useEvents();
+  const { data: events = [], isLoading, isError, error } = useEvents();
   const { data: planTypes = [] } = usePlanTypes();
   const { data: projects = [] } = useProjects();
   const deleteEventMutation = useDeleteEvent();
@@ -35,6 +35,8 @@ export default function EventsListPage() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState<EventColor>('blue');
+  const loadErrorMessage = (err: unknown) =>
+    err instanceof Error && err.message ? err.message : 'Unknown error';
 
   const handleAddProject = () => {
     if (newProjectName.trim()) {
@@ -166,8 +168,24 @@ export default function EventsListPage() {
     );
   }
 
+  // Debug panel for raw event data
+  const [showDebug, setShowDebug] = useState(false);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <button
+        onClick={() => setShowDebug((v) => !v)}
+        className="fixed bottom-4 right-4 z-50 px-3 py-2 bg-gray-800 text-white rounded shadow hover:bg-gray-700 text-xs"
+      >
+        {showDebug ? 'Hide' : 'Show'} Event Debug
+      </button>
+      {showDebug && (
+        <div className="fixed bottom-16 right-4 z-50 w-[420px] max-h-[60vh] overflow-auto bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded shadow p-3 text-xs text-left">
+          <div className="mb-2 font-bold">Raw Events Data</div>
+          <pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(events, null, 2)}</pre>
+        </div>
+      )}
+
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-2">
           <div className="flex items-center justify-between gap-4">
@@ -234,6 +252,13 @@ export default function EventsListPage() {
           </div>
         </div>
       </header>
+      {isError && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+            Failed to load events. {loadErrorMessage(error)}.
+          </div>
+        </div>
+      )}
 
       {/* Add Project Modal */}
       {showAddProject && (
