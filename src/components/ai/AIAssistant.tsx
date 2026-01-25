@@ -6,6 +6,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/useEventsQuery';
 import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { useConstraints } from '@/hooks/useConstraintsQuery';
+import { useTasks, useCreateTask } from '@/hooks/useTasksQuery';
 import { Sparkles, Send, X, Loader2, Lightbulb, Calendar, AlertCircle, Wand2, Play, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { EventColor, PlanEvent } from '@/types';
@@ -36,12 +37,14 @@ export function AIAssistant() {
   } = useUIStore();
 
   const { data: events = [] } = useEvents();
+  const { data: tasks = [] } = useTasks();
   const { data: planTypes = [] } = usePlanTypes();
   const { data: constraints = [] } = useConstraints();
   
   const createEventMutation = useCreateEvent();
   const updateEventMutation = useUpdateEvent();
   const deleteEventMutation = useDeleteEvent();
+  const createTaskMutation = useCreateTask();
   const createPlanTypeMutation = useCreatePlanType();
   const deletePlanTypeMutation = useDeletePlanType();
   
@@ -56,6 +59,26 @@ export function AIAssistant() {
   const deleteEvent = useCallback((id: string) => {
     deleteEventMutation.mutate(id);
   }, [deleteEventMutation]);
+
+  const addTask = useCallback((task: {
+    title: string;
+    description?: string;
+    status?: 'todo' | 'in-progress' | 'done';
+    priority?: 'low' | 'medium' | 'high';
+    dueDate?: Date;
+    linkedPlanType?: string;
+    linkedEventId?: string;
+  }) => {
+    createTaskMutation.mutate({
+      title: task.title,
+      description: task.description,
+      status: task.status ?? 'todo',
+      priority: task.priority ?? 'medium',
+      dueDate: task.dueDate,
+      linkedPlanType: task.linkedPlanType,
+      linkedEventId: task.linkedEventId,
+    });
+  }, [createTaskMutation]);
   
   const addPlanType = useCallback((pt: { name: string; label: string; color: EventColor; icon: string }) => {
     createPlanTypeMutation.mutate(pt);
@@ -98,6 +121,21 @@ export function AIAssistant() {
         case 'delete_event':
           deleteEvent(action.payload.id as string);
           break;
+        case 'add_task': {
+          const dueDate = action.payload.dueDate
+            ? new Date(action.payload.dueDate as string)
+            : undefined;
+          addTask({
+            title: (action.payload.title as string) || 'Untitled Task',
+            description: action.payload.description as string,
+            status: action.payload.status as 'todo' | 'in-progress' | 'done',
+            priority: action.payload.priority as 'low' | 'medium' | 'high',
+            dueDate,
+            linkedPlanType: action.payload.linkedPlanType as string,
+            linkedEventId: action.payload.linkedEventId as string,
+          });
+          break;
+        }
         case 'add_plan_type':
           addPlanType({
             name: action.payload.name as string,
@@ -148,6 +186,16 @@ export function AIAssistant() {
               startDate: e.startDate,
               endDate: e.endDate,
               color: e.color,
+            })),
+            tasks: tasks.map(t => ({
+              id: t.id,
+              title: t.title,
+              description: t.description,
+              status: t.status,
+              priority: t.priority,
+              dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+              linkedPlanType: t.linkedPlanType,
+              linkedEventId: t.linkedEventId,
             })),
             constraints: constraints.map(c => ({
               name: c.name,

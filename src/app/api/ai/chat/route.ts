@@ -38,6 +38,7 @@ Current Year: ${new Date().getFullYear()}
 
 Current Context:
 - Events: ${JSON.stringify(context.events || [])}
+- Tasks: ${JSON.stringify(context.tasks || [])}
 - Constraints: ${JSON.stringify(context.constraints || [])}
 - Planning Context (user-defined rules/assumptions): ${JSON.stringify(context.planningContext || [])}
 - Available Plan Types: ${JSON.stringify(context.planTypes || [])}
@@ -62,6 +63,7 @@ Available actions:
 - add_event: Create new event (requires: title, startDate, endDate, planType). IMPORTANT: planType MUST be one of the Available Plan Types listed above (use the "name" field).
 - update_event: Update event (requires: id, plus fields to update)
 - delete_event: Delete event (requires: id)
+- add_task: Create a new task (requires: title. Optional: description, status [todo|in-progress|done], priority [low|medium|high], dueDate, linkedPlanType, linkedEventId)
 - add_plan_type: Add custom plan type (requires: name, label, color)
 
 IMPORTANT: 
@@ -258,6 +260,25 @@ function generateActions(message: string, context: any): any[] {
           color: defaultPlanType.color,
         },
         description: 'Create a new event next week',
+      });
+    }
+  }
+
+  if (lowerMessage.includes('task') || lowerMessage.includes('todo')) {
+    if (lowerMessage.includes('add') || lowerMessage.includes('create')) {
+      const today = new Date();
+      const dueDate = new Date(today);
+      dueDate.setDate(dueDate.getDate() + 3);
+      actions.push({
+        action: 'add_task',
+        payload: {
+          title: 'New Task',
+          description: 'Task created by AI assistant',
+          status: 'todo',
+          priority: 'medium',
+          dueDate: dueDate.toISOString().split('T')[0],
+        },
+        description: 'Create a new task',
       });
     }
   }

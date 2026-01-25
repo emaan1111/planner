@@ -38,7 +38,7 @@ export interface PlanningContext {
 
 // AI Action types for the assistant to execute
 export interface AIAction {
-  type: 'add_event' | 'update_event' | 'delete_event' | 'add_plan_type' | 'delete_plan_type' | 'add_constraint';
+  type: 'add_event' | 'update_event' | 'delete_event' | 'add_task' | 'add_plan_type' | 'delete_plan_type' | 'add_constraint';
   payload: Record<string, unknown>;
 }
 

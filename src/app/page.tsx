@@ -9,6 +9,7 @@ import { EventModal } from '@/components/modals/EventModal';
 import { PlanningContextModal } from '@/components/modals/PlanningContextModal';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { ToastContainer } from '@/components/ui/Toast';
+import { DndProvider, TaskPanel } from '@/components/dnd';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useConstraintChecker } from '@/hooks/useConstraintChecker';
 
@@ -39,25 +40,28 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950 overflow-hidden">
-      {!isFullscreen && <CalendarHeader />}
-      
-      <div className="flex-1 flex overflow-hidden">
-        {!isFullscreen && <Sidebar />}
+    <DndProvider>
+      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950 overflow-hidden">
+        {!isFullscreen && <CalendarHeader />}
         
-        <main className={`flex-1 overflow-auto ${isFullscreen ? 'p-2' : 'p-4 lg:p-6'}`}>
-          <AnimatePresence mode="wait">
-            {renderCalendarView()}
-          </AnimatePresence>
-        </main>
+        <div className="flex-1 flex overflow-hidden">
+          {!isFullscreen && <Sidebar />}
+          
+          <main className={`flex-1 overflow-auto ${isFullscreen ? 'p-2' : 'p-4 lg:p-6'}`}>
+            <AnimatePresence mode="wait">
+              {renderCalendarView()}
+            </AnimatePresence>
+          </main>
 
-        {!isFullscreen && <AIAssistant />}
+          {!isFullscreen && <AIAssistant />}
+        </div>
+
+        <EventModal />
+        <PlanningContextModal />
+        <CommandPalette />
+        <ToastContainer />
+        <TaskPanel />
       </div>
-
-      <EventModal />
-      <PlanningContextModal />
-      <CommandPalette />
-      <ToastContainer />
-    </div>
+    </DndProvider>
   );
 }

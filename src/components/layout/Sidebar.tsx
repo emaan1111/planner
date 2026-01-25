@@ -7,7 +7,7 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/u
 import { useDecisions, useCreateDecision, useUpdateDecision, useDeleteDecision } from '@/hooks/useDecisionsQuery';
 import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { PlanType, colorClasses, EventColor, Task, KeyDecision } from '@/types';
-import { Plus, Filter, ChevronDown, Star, Trash2, Brain, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List } from 'lucide-react';
+import { Plus, Filter, ChevronDown, Star, Trash2, Brain, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -22,6 +22,8 @@ export function Sidebar() {
     syncPlanTypes,
     openEventModal,
     openPlanningContextModal,
+    toggleTaskPanel,
+    isTaskPanelOpen,
   } = useUIStore();
 
   const { data: planTypes = [] } = usePlanTypes();
@@ -525,13 +527,29 @@ export function Sidebar() {
                     <ChevronDown className="w-4 h-4" />
                   </motion.div>
                 </motion.button>
-                <Link
-                  href="/tasks"
-                  className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  title="Open full tasks page"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </Link>
+                <div className="flex items-center gap-1">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={toggleTaskPanel}
+                    className={clsx(
+                      'p-1.5 rounded-lg transition-colors',
+                      isTaskPanelOpen
+                        ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                    )}
+                    title="Drag tasks to calendar"
+                  >
+                    <GripVertical className="w-4 h-4" />
+                  </motion.button>
+                  <Link
+                    href="/tasks"
+                    className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    title="Open full tasks page"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
 
               <AnimatePresence>

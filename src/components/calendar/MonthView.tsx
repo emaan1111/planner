@@ -9,6 +9,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import clsx from 'clsx';
 import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
+import { DroppableCalendarCell } from '@/components/dnd';
 
 interface ResizeState {
   eventId: string;
@@ -342,11 +343,9 @@ export function MonthView() {
                 const isHovered = hoveredDate && isSameDay(date, hoveredDate);
 
                 return (
-                  <div
+                  <DroppableCalendarCell
                     key={date.toISOString()}
-                    ref={(el) => {
-                      if (el) cellRefs.current.set(date.toISOString(), el);
-                    }}
+                    date={date}
                     onClick={() => handleDayClick(date)}
                     onDoubleClick={() => handleDayDoubleClick(date)}
                     onContextMenu={(e) => handleDayContextMenu(e, date)}
@@ -358,6 +357,9 @@ export function MonthView() {
                       isHovered && (resizing || dragging) && 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 ring-inset',
                       clipboardEvent && 'hover:ring-2 hover:ring-green-400 hover:ring-inset'
                     )}
+                    cellRef={(el) => {
+                      if (el) cellRefs.current.set(date.toISOString(), el);
+                    }}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span
@@ -374,7 +376,7 @@ export function MonthView() {
                     
                     {/* Spacer for multi-day events */}
                     <div className="h-[calc(100%-32px)]" />
-                  </div>
+                  </DroppableCalendarCell>
                 );
               })}
             </div>

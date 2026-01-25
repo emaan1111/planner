@@ -30,6 +30,7 @@ interface UIState {
   isSidebarOpen: boolean;
   isFullscreen: boolean;
   isPlanningContextModalOpen: boolean;
+  isTaskPanelOpen: boolean;
   
   // Clipboard
   clipboardEvent: PlanEvent | null;
@@ -70,6 +71,7 @@ interface UIState {
   toggleFullscreen: () => void;
   openPlanningContextModal: () => void;
   closePlanningContextModal: () => void;
+  toggleTaskPanel: () => void;
   
   // Clipboard actions
   cutEvent: (event: PlanEvent) => void;
@@ -112,6 +114,7 @@ export const useUIStore = create<UIState>()(
       isSidebarOpen: true,
       isFullscreen: false,
       isPlanningContextModalOpen: false,
+      isTaskPanelOpen: false,
       
       clipboardEvent: null,
       clipboardAction: null,
@@ -181,6 +184,7 @@ export const useUIStore = create<UIState>()(
       toggleFullscreen: () => set((state) => ({ isFullscreen: !state.isFullscreen })),
       openPlanningContextModal: () => set({ isPlanningContextModalOpen: true }),
       closePlanningContextModal: () => set({ isPlanningContextModalOpen: false }),
+      toggleTaskPanel: () => set((state) => ({ isTaskPanelOpen: !state.isTaskPanelOpen })),
       
       // Clipboard actions
       cutEvent: (event) => set({ clipboardEvent: event, clipboardAction: 'cut' }),
