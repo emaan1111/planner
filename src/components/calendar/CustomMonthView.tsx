@@ -14,7 +14,6 @@ import { Check, ChevronDown, X, Save, FolderOpen, Trash2, Maximize2, Minimize2 }
 import { DroppableCalendarCell } from '@/components/dnd';
 
 // Layout constants
-const MAX_EVENTS_PER_WEEK = 2;
 const EVENT_HEIGHT = 12; // px
 const EVENT_GAP = 2; // px
 const HEADER_HEIGHT = 20; // px for date number
@@ -293,7 +292,14 @@ function CompactMonth({
     return null;
   }, [resize, eventDrag]);
 
-  const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  // Calculate dynamic max events based on height
+  const maxEventsPerWeek = useMemo(() => {
+    const weekCount = weeks.length;
+    if (weekCount === 0) return 2;
+    const cellHeight = size.height / weekCount;
+    const availableHeight = cellHeight - HEADER_HEIGHT - 2; // -2 for padding
+    return Math.max(0, Math.floor(availableHeight / (EVENT_HEIGHT + EVENT_GAP)));
+  }, [size.height, weeks.length]);
 
   return (
     <motion.div
@@ -399,7 +405,7 @@ function CompactMonth({
                     
                     {hasEvents && weekEvents.length === 0 && (
                       <div className="flex justify-center gap-0.5 mt-0.5">
-                        {dayEvents.slice(0, 2).map((event, idx) => (
+                        {dayEvents.slice(0, 3).map((event, idx) => (
                           <div
                             key={idx}
                             className={clsx('w-1 h-1 rounded-full', colorClasses[event.color].bg)}
@@ -414,7 +420,7 @@ function CompactMonth({
 
             <div className="absolute left-0 right-0 pointer-events-none px-0.5" style={{ top: `${HEADER_HEIGHT}px` }}>
               <AnimatePresence>
-                {weekEvents.slice(0, MAX_EVENTS_PER_WEEK).map((event, eventIndex) => {
+                {weekEvents.slice(0, maxEventsPerWeek).map((event, eventIndex) => {
                   const preview = getPreviewSpan(event);
                   const effectiveStart = preview ? preview.start : new Date(event.startDate);
                   const effectiveEnd = preview ? preview.end : new Date(event.endDate);

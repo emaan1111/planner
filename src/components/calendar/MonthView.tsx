@@ -30,6 +30,11 @@ interface TooltipState {
   position: { x: number; y: number };
 }
 
+interface DragSelectionState {
+  startDate: Date;
+  endDate: Date;
+}
+
 export function MonthView() {
   const { currentDate, openEventModal, selectedPlanTypes, cutEvent, copyEvent, clipboardEvent, setCurrentDate, clearClipboard } = useUIStore();
   const router = useRouter();
@@ -70,10 +75,12 @@ export function MonthView() {
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
   const [contextMenu, setContextMenu] = useState<{ event: PlanEvent; position: { x: number; y: number } } | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [dragSelection, setDragSelection] = useState<DragSelectionState | null>(null);
   const tooltipTimeout = useRef<NodeJS.Timeout | null>(null);
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const dragSelectionRef = useRef<DragSelectionState | null>(null);
   
   // Refs to track current state for event handlers (avoids stale closures)
   const resizingRef = useRef<ResizeState | null>(null);
@@ -83,6 +90,7 @@ export function MonthView() {
   // Keep refs in sync with state
   useEffect(() => { resizingRef.current = resizing; }, [resizing]);
   useEffect(() => { draggingRef.current = dragging; }, [dragging]);
+  useEffect(() => { dragSelectionRef.current = dragSelection; }, [dragSelection]);
 
   const days = useMemo(() => {
     const start = startOfWeek(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1), { weekStartsOn: 1 });
@@ -133,7 +141,7 @@ export function MonthView() {
     });
   }, [filteredEvents]);
 
-  // Handle mouse move during resize/drag
+  // Handle mouse move during resize/drag/select
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!containerRef.current) return;
     
@@ -154,14 +162,49 @@ export function MonthView() {
       setHoveredDate(foundDate);
       setResizing(prev => prev ? { ...prev, currentDate: foundDate! } : null);
       setDragging(prev => prev ? { ...prev, currentDate: foundDate! } : null);
+      
+      // Update drag selection
+      if (dragSelectionRef.current) {
+        setDragSelection(prev => prev ? { ...prev, endDate: foundDate! } : null);
+      }
     }
   }, []);
 
-  // Handle mouse up to complete resize/drag
+  // Handle mouse up to complete resize/drag/select
   const handleMouseUp = useCallback(() => {
     // Use refs to get current state values (avoids stale closures)
     const currentResizing = resizingRef.current;
     const currentDragging = draggingRef.current;
+    const currentDragSelection = dragSelectionRef.current;
+    
+    if (currentDragSelection && isDragging.current) {
+      if (!currentResizing && !currentDragging) {
+        // Find start and end date
+        let start = currentDragSelection.startDate;
+        let end = currentDragSelection.endDate;
+        if (start > end) {
+          [start, end] = [end, start];
+        }
+
+        if (isSameDay(start, end)) {
+          // Single day click handled here now instead of onClick
+          setCurrentDate(start);
+          if (clickTimeout.current) {
+            clearTimeout(clickTimeout.current);
+          }
+           // We need to wait to see if it's a double click (handled elsewhere or here?)
+           // Logic from CustomMonthView:
+          clickTimeout.current = setTimeout(() => {
+            openEventModal();
+          }, 220);
+        } else {
+          // Range selection
+          setCurrentDate(start);
+          openEventModal(undefined, { startDate: start, endDate: end });
+        }
+      }
+      setDragSelection(null);
+    }
     
     if (currentResizing) {
       const event = events.find(e => e.id === currentResizing.eventId);
@@ -220,6 +263,17 @@ export function MonthView() {
     e.stopPropagation();
     isDragging.current = true;
     setDragging({ eventId, initialDate: date, currentDate: date });
+  };
+
+  const handleDayMouseDown = (date: Date, e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    if (resizing || dragging) return;
+
+    // Prevent default to stop text selection, but be careful with other interactions
+    // e.preventDefault(); 
+    
+    isDragging.current = true;
+    setDragSelection({ startDate: date, endDate: date });
   };
 
   // Single click to select date, double click to create event
@@ -293,6 +347,15 @@ export function MonthView() {
   };
 
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  // Check if a date is selected
+  const isSelected = useCallback((date: Date) => {
+    if (!dragSelection) return false;
+    // Handle both forward and backward usage
+    const start = dragSelection.startDate < dragSelection.endDate ? dragSelection.startDate : dragSelection.endDate;
+    const end = dragSelection.startDate < dragSelection.endDate ? dragSelection.endDate : dragSelection.startDate;
+    return (date >= start && date <= end) || isSameDay(date, start) || isSameDay(date, end);
+  }, [dragSelection]);
 
   // Calculate preview for resize/drag
   const getPreviewSpan = useCallback((event: PlanEvent) => {
@@ -370,16 +433,23 @@ export function MonthView() {
                   <DroppableCalendarCell
                     key={date.toISOString()}
                     date={date}
-                    onClick={() => handleDayClick(date)}
+                    onMouseDown={(e) => handleDayMouseDown(date, e)}
+                    onMouseEnter={() => {
+                      if (isDragging.current && dragSelection) {
+                         // This is handled by global mouse move for precise tracking, 
+                         // but we can add redundant check here if needed or just leave as is since we use elementFromPoint
+                      }
+                    }}
                     onDoubleClick={() => handleDayDoubleClick(date)}
                     onContextMenu={(e) => handleDayContextMenu(e, date)}
                     className={clsx(
-                      'min-h-[120px] p-2 border-b border-r border-gray-100 dark:border-gray-800 transition-colors cursor-pointer',
+                      'min-h-[120px] p-2 border-b border-r border-gray-100 dark:border-gray-800 transition-colors cursor-pointer select-none',
                       !isCurrentMonth && 'bg-gray-50 dark:bg-gray-900/50',
                       dayIsWeekend && isCurrentMonth && 'bg-gray-50/50 dark:bg-gray-900/30',
                       'hover:bg-gray-100 dark:hover:bg-gray-800/50',
                       isHovered && (resizing || dragging) && 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 ring-inset',
-                      clipboardEvent && 'hover:ring-2 hover:ring-green-400 hover:ring-inset'
+                      clipboardEvent && 'hover:ring-2 hover:ring-green-400 hover:ring-inset',
+                      isSelected(date) && 'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400 ring-inset'
                     )}
                     cellRef={(el) => {
                       if (el) cellRefs.current.set(date.toISOString(), el);
