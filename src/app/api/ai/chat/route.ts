@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
             content: `You are an expert planning assistant helping users create and optimize their plans. 
 You have access to the user's current events, constraints, planning context, and any violations.
 
+Current Date: ${new Date().toISOString().split('T')[0]}
+Current Year: ${new Date().getFullYear()}
+
 Current Context:
 - Events: ${JSON.stringify(context.events || [])}
 - Constraints: ${JSON.stringify(context.constraints || [])}
@@ -46,8 +49,8 @@ You can suggest actions to modify the calendar. When suggesting actions, format 
   "action": "add_event",
   "payload": {
     "title": "Event Title",
-    "startDate": "2024-02-15",
-    "endDate": "2024-02-15",
+    "startDate": "${new Date().getFullYear()}-02-15",
+    "endDate": "${new Date().getFullYear()}-02-15",
     "planType": "marketing",
     "color": "blue",
     "description": "Event description"
@@ -65,6 +68,7 @@ IMPORTANT:
 - Always respect the user's planning context (constraints, assumptions, goals, preferences).
 - When creating events, ONLY use planType values from the Available Plan Types. If the user requests a plan type that doesn't exist, first suggest creating it with add_plan_type.
 - Use the color from the plan type when creating events.
+- ALWAYS use the current year (${new Date().getFullYear()}) for dates. Never use past years like 2024.
 Be concise, actionable, and specific in your recommendations.`,
           },
           {

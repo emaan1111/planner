@@ -183,13 +183,11 @@ export function Sidebar() {
             {/* View All Events Link */}
             <Link
               href="/events"
-              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              className="mt-2 w-full flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             >
-              <List className="w-4 h-4" />
-              View All Events
-              <span className="ml-auto text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
-                {events.length}
-              </span>
+              <List className="w-3.5 h-3.5" />
+              <span>All Events</span>
+              <span className="ml-auto text-xs text-gray-400">{events.length}</span>
             </Link>
 
             {/* Plan Type Filters */}
