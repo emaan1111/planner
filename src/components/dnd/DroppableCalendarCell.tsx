@@ -2,15 +2,11 @@
 
 import { useDroppable } from '@dnd-kit/core';
 import clsx from 'clsx';
-import { ReactNode, useCallback } from 'react';
+import { ReactNode, useCallback, HTMLAttributes } from 'react';
 
-interface DroppableCalendarCellProps {
+interface DroppableCalendarCellProps extends HTMLAttributes<HTMLDivElement> {
   date: Date;
   children: ReactNode;
-  className?: string;
-  onClick?: () => void;
-  onDoubleClick?: () => void;
-  onContextMenu?: (e: React.MouseEvent) => void;
   cellRef?: (el: HTMLDivElement | null) => void;
 }
 
@@ -18,10 +14,8 @@ export function DroppableCalendarCell({
   date,
   children,
   className,
-  onClick,
-  onDoubleClick,
-  onContextMenu,
   cellRef,
+  ...props
 }: DroppableCalendarCellProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `calendar-day-${date.toISOString()}`,
@@ -37,13 +31,11 @@ export function DroppableCalendarCell({
   return (
     <div
       ref={combinedRef}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      onContextMenu={onContextMenu}
       className={clsx(
         className,
         isOver && 'ring-2 ring-blue-500 ring-inset bg-blue-50 dark:bg-blue-900/30'
       )}
+      {...props}
     >
       {children}
     </div>

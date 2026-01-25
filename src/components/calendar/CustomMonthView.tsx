@@ -11,6 +11,7 @@ import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronDown, X, Save, FolderOpen, Trash2, Maximize2, Minimize2 } from 'lucide-react';
+import { DroppableCalendarCell } from '@/components/dnd';
 
 // Layout constants
 const MAX_EVENTS_PER_WEEK = 2;
@@ -356,9 +357,10 @@ function CompactMonth({
                 const isEventHovering = eventDrag || resize;
 
                 return (
-                  <div
+                  <DroppableCalendarCell
                     key={date.toISOString()}
-                    ref={(el) => {
+                    date={date}
+                    cellRef={(el) => {
                       if (el) cellRefs.current.set(date.toISOString(), el);
                     }}
                     onMouseDown={(e) => onDayMouseDown(date, e)}
@@ -405,7 +407,7 @@ function CompactMonth({
                         ))}
                       </div>
                     )}
-                  </div>
+                  </DroppableCalendarCell>
                 );
               })}
             </div>
