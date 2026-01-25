@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasksQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { Task } from '@/types';
-import { GripVertical, X, CheckSquare, Circle, Check, Plus, Trash2, Pencil, Filter } from 'lucide-react';
+import { GripVertical, X, CheckSquare, Circle, Check, Plus, Trash2, Pencil, Filter, GripHorizontal } from 'lucide-react';
 import clsx from 'clsx';
 import { useUIStore } from '@/store/uiStore';
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface DraggableTaskProps {
   task: Task;
@@ -124,6 +124,47 @@ export function TaskPanel() {
     linkedPlanType: '',
   });
 
+  // Resize state
+  const [panelSize, setPanelSize] = useState({ width: 320, height: 450 });
+  const [isResizing, setIsResizing] = useState<'width' | 'height' | 'both' | null>(null);
+  const resizeStartRef = useRef({ x: 0, y: 0, width: 320, height: 450 });
+
+  const handleResizeStart = useCallback((e: React.MouseEvent, direction: 'width' | 'height' | 'both') => {
+    e.preventDefault();
+    setIsResizing(direction);
+    resizeStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      width: panelSize.width,
+      height: panelSize.height,
+    };
+  }, [panelSize]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = resizeStartRef.current.x - e.clientX;
+      const deltaY = e.clientY - resizeStartRef.current.y;
+
+      setPanelSize(prev => ({
+        width: isResizing === 'height' ? prev.width : Math.max(280, Math.min(600, resizeStartRef.current.width + deltaX)),
+        height: isResizing === 'width' ? prev.height : Math.max(300, Math.min(800, resizeStartRef.current.height + deltaY)),
+      }));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   const draggableTasks = tasks.filter(t => {
     // Filter out done and scheduled tasks
     if (t.status === 'done' || t.status === 'scheduled') return false;
@@ -184,10 +225,34 @@ export function TaskPanel() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 300 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="fixed right-4 top-20 w-80 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 z-40 overflow-hidden"
+          style={{ width: panelSize.width, height: panelSize.height }}
+          className={clsx(
+            "fixed right-4 top-20 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 z-40 overflow-hidden flex flex-col",
+            isResizing && "select-none"
+          )}
         >
+          {/* Resize handle - left edge */}
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'width')}
+            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-blue-500/20 transition-colors z-10"
+          />
+          
+          {/* Resize handle - bottom edge */}
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'height')}
+            className="absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize hover:bg-blue-500/20 transition-colors z-10"
+          />
+          
+          {/* Resize handle - corner */}
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'both')}
+            className="absolute left-0 bottom-0 w-4 h-4 cursor-nesw-resize hover:bg-blue-500/30 transition-colors z-20 flex items-center justify-center"
+          >
+            <GripHorizontal className="w-3 h-3 text-gray-400 rotate-45" />
+          </div>
+
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500">
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 flex-shrink-0">
             <div className="flex items-center gap-2 text-white">
               <CheckSquare className="w-5 h-5" />
               <span className="font-semibold">Tasks</span>
@@ -281,7 +346,7 @@ export function TaskPanel() {
           </AnimatePresence>
 
           {/* Filter & Instructions */}
-          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 space-y-2">
+          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 space-y-2 flex-shrink-0">
             <div className="flex items-center gap-2">
               <Filter className="w-3.5 h-3.5 text-gray-400" />
               <select
@@ -302,7 +367,7 @@ export function TaskPanel() {
           </div>
 
           {/* Task list */}
-          <div className="p-3 max-h-[350px] overflow-y-auto space-y-2">
+          <div className="p-3 flex-1 overflow-y-auto space-y-2">
             {draggableTasks.length === 0 ? (
               <div className="text-center py-6 text-gray-400">
                 <CheckSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
