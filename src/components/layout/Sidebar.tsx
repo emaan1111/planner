@@ -108,12 +108,12 @@ export function Sidebar() {
   };
 
   const handleAddTask = () => {
-    if (newTaskTitle.trim()) {
+    if (newTaskTitle.trim() && newTaskPlanType) {
       addTask({
         title: newTaskTitle.trim(),
         status: 'todo',
         priority: 'medium',
-        linkedPlanType: newTaskPlanType || undefined,
+        linkedPlanType: newTaskPlanType,
         linkedEventId: newTaskEventId || undefined,
       });
       setNewTaskTitle('');
@@ -471,7 +471,7 @@ export function Sidebar() {
                             onChange={(e) => setNewDecisionPlanType(e.target.value)}
                             className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
                           >
-                            <option value="">Link to plan type...</option>
+                            <option value="">Select plan type *</option>
                             {planTypes.map((pt) => (
                               <option key={pt.id} value={pt.name}>{pt.label}</option>
                             ))}
@@ -666,7 +666,7 @@ export function Sidebar() {
                           </button>
                           <button
                             onClick={handleAddTask}
-                            disabled={!newTaskTitle.trim()}
+                            disabled={!newTaskTitle.trim() || !newTaskPlanType}
                             className="flex-1 px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
                           >
                             Add

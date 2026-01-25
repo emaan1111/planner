@@ -44,6 +44,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    if (!body.linkedPlanType) {
+      return NextResponse.json(
+        { error: 'linkedPlanType is required' },
+        { status: 400 }
+      );
+    }
 
     const task = await prisma.task.create({
       data: {

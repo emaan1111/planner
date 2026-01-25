@@ -58,14 +58,14 @@ export default function TasksPage() {
   const allPlanTypes = planTypes.map(pt => pt.name);
 
   const handleAddTask = () => {
-    if (newTitle.trim()) {
+    if (newTitle.trim() && newPlanType) {
       addTask({
         title: newTitle.trim(),
         description: newDescription.trim() || undefined,
         status: 'todo',
         priority: newPriority,
         dueDate: newDueDate ? new Date(newDueDate) : undefined,
-        linkedPlanType: newPlanType || undefined,
+        linkedPlanType: newPlanType,
         linkedEventId: newEventId || undefined,
       });
       setNewTitle('');
@@ -459,19 +459,19 @@ export default function TasksPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Link to Plan Type
-                    </label>
-                    <select
-                      value={newPlanType}
-                      onChange={(e) => setNewPlanType(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    >
-                      <option value="">None</option>
-                      {allPlanTypes.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
+                    Plan Type *
+                  </label>
+                  <select
+                    value={newPlanType}
+                    onChange={(e) => setNewPlanType(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select a plan type</option>
+                    {allPlanTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Link to Event
@@ -499,7 +499,7 @@ export default function TasksPage() {
                 </button>
                 <button
                   onClick={handleAddTask}
-                  disabled={!newTitle.trim()}
+                  disabled={!newTitle.trim() || !newPlanType}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 transition-opacity"
                 >
                   Add Task

@@ -48,11 +48,11 @@ export function DndProvider({ children }: DndProviderProps) {
         // Find matching plan type for the task
         const planType = planTypes.find(pt => pt.name === task.linkedPlanType);
         
-        // Create event from task
+        // Create event from task with the task's plan type
         createEventMutation.mutate({
           title: task.title,
           description: task.description,
-          planType: task.linkedPlanType,
+          planType: task.linkedPlanType || undefined,
           color: planType?.color || 'blue',
           startDate: dropDate,
           endDate: dropDate,

@@ -66,7 +66,7 @@ export function AIAssistant() {
     status?: 'todo' | 'in-progress' | 'scheduled' | 'done';
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;
-    linkedPlanType?: string;
+    linkedPlanType: string;
     linkedEventId?: string;
   }) => {
     createTaskMutation.mutate({
@@ -125,6 +125,9 @@ export function AIAssistant() {
           const dueDate = action.payload.dueDate
             ? new Date(action.payload.dueDate as string)
             : undefined;
+          if (!action.payload.linkedPlanType) {
+            throw new Error('linkedPlanType is required to create a task');
+          }
           addTask({
             title: (action.payload.title as string) || 'Untitled Task',
             description: action.payload.description as string,
