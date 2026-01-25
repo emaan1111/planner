@@ -577,7 +577,6 @@ export function Sidebar() {
                               <div className="flex items-center gap-2 mt-1">
                                 {task.priority !== 'medium' && (
                                   <span className={clsx('text-[10px] px-1.5 py-0.5 rounded-full capitalize', 
-                                    task.priority === 'urgent' ? 'bg-red-100 text-red-700' : 
                                     task.priority === 'high' ? 'bg-orange-100 text-orange-700' : 
                                     'bg-gray-200 text-gray-700'
                                   )}>
@@ -598,32 +597,6 @@ export function Sidebar() {
                               e.stopPropagation();
                               deleteTask(task.id);
                             }}
-                            className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </motion.div>
-                    ))}
-                              className="mt-0.5"
-                            >
-                              {getTaskStatusIcon(task.status)}
-                            </button>
-                            <div className="flex-1 min-w-0">
-                              <p className={clsx(
-                                'text-sm font-medium truncate',
-                                task.status === 'done' 
-                                  ? 'text-gray-400 dark:text-gray-500 line-through' 
-                                  : task.status === 'scheduled'
-                                  ? 'text-purple-600 dark:text-purple-400'
-                                  : 'text-gray-800 dark:text-gray-200'
-                              )}>
-                                {task.title}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => deleteTask(task.id)}
                             className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -707,8 +680,5 @@ export function Sidebar() {
         </div>
             </motion.aside>
     </>
-  );
-}
-    </AnimatePresence>
   );
 }

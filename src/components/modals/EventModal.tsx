@@ -7,7 +7,7 @@ import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hoo
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { useProjects } from '@/hooks/useProjectsQuery';
 import { PlanEvent, PlanType, EventColor, colorClasses, RecurrencePattern } from '@/types';
-import { X, Calendar, Clock, Tag, Flag, Palette, Trash2, Copy, Save, Sparkles, Repeat, ChevronDown, FolderKanban } from 'lucide-react';
+import { X, Calendar, Clock, Tag, Flag, Palette, Trash2, Copy, Save, Sparkles, Repeat, ChevronDown, FolderKanban, CheckCircle2 } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import { toast } from '@/components/ui/Toast';

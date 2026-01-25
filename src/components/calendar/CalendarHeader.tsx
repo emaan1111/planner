@@ -123,7 +123,7 @@ export function CalendarHeader() {
                 onClick={() => handleViewChange(mode)}
                 className={clsx(
                   'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  viewMode === mode && mode !== 'day'
+                  viewMode === mode
                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 )}
