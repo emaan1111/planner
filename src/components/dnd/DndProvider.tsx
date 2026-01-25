@@ -1,6 +1,6 @@
 'use client';
 
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, pointerWithin } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, pointerWithin, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { useState, ReactNode } from 'react';
 import { Task } from '@/types';
 import { useCreateEvent } from '@/hooks/useEventsQuery';
@@ -20,8 +20,20 @@ export function DndProvider({ children }: DndProviderProps) {
   const createEventMutation = useCreateEvent();
   const updateTaskMutation = useUpdateTask();
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
   const handleDragStart = (event: DragStartEvent) => {
-    const taskId = event.active.id as string;
+    const activeId = event.active.id as string;
+    // Only handle drag-to-calendar items
+    if (!activeId.startsWith('drag-to-calendar-')) return;
+    
+    const taskId = activeId.replace('drag-to-calendar-', '');
     const task = tasks.find(t => t.id === taskId);
     if (task) {
       setActiveTask(task);
@@ -34,7 +46,11 @@ export function DndProvider({ children }: DndProviderProps) {
 
     if (!over) return;
 
-    const taskId = active.id as string;
+    const activeId = active.id as string;
+    // Only handle drag-to-calendar items
+    if (!activeId.startsWith('drag-to-calendar-')) return;
+    
+    const taskId = activeId.replace('drag-to-calendar-', '');
     const dropId = over.id as string;
 
     // Check if dropped on a calendar day cell
@@ -69,6 +85,7 @@ export function DndProvider({ children }: DndProviderProps) {
 
   return (
     <DndContext
+      sensors={sensors}
       collisionDetection={pointerWithin}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
