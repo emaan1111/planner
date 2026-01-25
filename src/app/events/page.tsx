@@ -35,6 +35,7 @@ export default function EventsListPage() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState<EventColor>('blue');
+  const [showDebug, setShowDebug] = useState(false);
   const loadErrorMessage = (err: unknown) =>
     err instanceof Error && err.message ? err.message : 'Unknown error';
 
@@ -167,9 +168,6 @@ export default function EventsListPage() {
       </div>
     );
   }
-
-  // Debug panel for raw event data
-  const [showDebug, setShowDebug] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
