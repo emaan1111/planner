@@ -420,77 +420,127 @@ function CompactMonth({
 
             <div className="absolute left-0 right-0 pointer-events-none px-0.5" style={{ top: `${HEADER_HEIGHT}px` }}>
               <AnimatePresence>
-                {weekEvents.slice(0, maxEventsPerWeek).map((event, eventIndex) => {
-                  const preview = getPreviewSpan(event);
-                  const effectiveStart = preview ? preview.start : new Date(event.startDate);
-                  const effectiveEnd = preview ? preview.end : new Date(event.endDate);
-                  
-                  const { startCol, span, startsBeforeWeek, endsAfterWeek } = getEventSpan(
-                    { ...event, startDate: effectiveStart, endDate: effectiveEnd },
-                    weekStart,
-                    weekEnd
-                  );
-                  
-                  if (span <= 0 || startCol < 0 || startCol > 6) return null;
-                  
-                  const colors = colorClasses[event.color];
-                  const isBeingModified = (resize?.eventId === event.id) || (eventDrag?.eventId === event.id);
+                {(() => {
+                  // Calculate layout positions to pack events upwards
+                  const eventRows = new Map<string, number>();
+                  const occupied = new Set<string>(); // "row-col"
 
-                  return (
-                    <motion.div
-                      key={event.id}
-                      initial={{ opacity: 0, y: -2 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      style={{
-                        left: `${(startCol / 7) * 100}%`,
-                        width: `${(Math.min(span, 7 - startCol) / 7) * 100}%`,
-                        top: `${eventIndex * (EVENT_HEIGHT + EVENT_GAP)}px`,
-                        height: `${EVENT_HEIGHT}px`,
-                      }}
-                      className={clsx(
-                        `absolute pointer-events-auto group`,
-                        isBeingModified && 'z-50'
-                      )}
-                    >
-                      <div
-                        onMouseDown={(e) => onEventMouseDown(event, effectiveStart, e)}
-                        onClick={(e) => onEventClick(event, e)}
-                        onContextMenu={(e) => onEventContextMenu(event, e)}
-                        onMouseEnter={(e) => onEventMouseEnter(event, e)}
-                        onMouseLeave={onEventMouseLeave}
+                  // Sort events
+                  const sortedEvents = [...weekEvents].sort((a, b) => {
+                    const startDiff = new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+                    if (startDiff !== 0) return startDiff;
+                    const aDuration = differenceInDays(new Date(a.endDate), new Date(a.startDate));
+                    const bDuration = differenceInDays(new Date(b.endDate), new Date(b.startDate));
+                    return bDuration - aDuration;
+                  });
+
+                  // Calculate rows
+                  sortedEvents.forEach(event => {
+                    const preview = getPreviewSpan(event);
+                    const effectiveStart = preview ? preview.start : new Date(event.startDate);
+                    const effectiveEnd = preview ? preview.end : new Date(event.endDate);
+                    
+                    const { startCol, span } = getEventSpan(
+                      { ...event, startDate: effectiveStart, endDate: effectiveEnd },
+                      weekStart,
+                      weekEnd
+                    );
+
+                    if (span <= 0 || startCol < 0 || startCol > 6) return;
+
+                    let rowIndex = 0;
+                    let valid = false;
+
+                    while (!valid) {
+                      valid = true;
+                      for (let i = 0; i < span; i++) {
+                        if (occupied.has(`${rowIndex}-${startCol + i}`)) {
+                          valid = false;
+                          break;
+                        }
+                      }
+                      if (!valid) rowIndex++;
+                    }
+
+                    eventRows.set(event.id, rowIndex);
+                    for (let i = 0; i < span; i++) {
+                      occupied.add(`${rowIndex}-${startCol + i}`);
+                    }
+                  });
+
+                  return sortedEvents.filter(e => (eventRows.get(e.id) ?? 999) < maxEventsPerWeek).map((event) => {
+                    const preview = getPreviewSpan(event);
+                    const effectiveStart = preview ? preview.start : new Date(event.startDate);
+                    const effectiveEnd = preview ? preview.end : new Date(event.endDate);
+                    
+                    const { startCol, span, startsBeforeWeek, endsAfterWeek } = getEventSpan(
+                      { ...event, startDate: effectiveStart, endDate: effectiveEnd },
+                      weekStart,
+                      weekEnd
+                    );
+                    
+                    if (span <= 0 || startCol < 0 || startCol > 6) return null;
+                    
+                    const colors = colorClasses[event.color];
+                    const isBeingModified = (resize?.eventId === event.id) || (eventDrag?.eventId === event.id);
+                    const row = eventRows.get(event.id) ?? 0;
+
+                    return (
+                      <motion.div
+                        key={event.id}
+                        initial={{ opacity: 0, y: -2 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                          left: `${(startCol / 7) * 100}%`,
+                          width: `${(Math.min(span, 7 - startCol) / 7) * 100}%`,
+                          top: `${row * (EVENT_HEIGHT + EVENT_GAP)}px`,
+                          height: `${EVENT_HEIGHT}px`,
+                        }}
                         className={clsx(
-                          'h-full mx-0.5 rounded flex items-center text-white text-[8px] font-medium cursor-grab active:cursor-grabbing transition-all relative overflow-hidden',
-                          colors.bg,
-                          'hover:shadow-md hover:scale-[1.02]',
-                          isBeingModified && 'shadow-lg scale-[1.02] ring-2 ring-white/50',
-                          !startsBeforeWeek && 'rounded-l pl-0.5',
-                          !endsAfterWeek && 'rounded-r pr-0.5',
-                          startsBeforeWeek && 'rounded-l-none',
-                          endsAfterWeek && 'rounded-r-none'
+                          `absolute pointer-events-auto group`,
+                          isBeingModified && 'z-50'
                         )}
                       >
-                        {!startsBeforeWeek && (
-                          <div
-                            onMouseDown={(e) => onResizeStart(event, 'start', effectiveStart, e)}
-                            className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-gradient-to-r from-white/40 to-transparent transition-opacity"
-                          />
-                        )}
-                        
-                        <span className="truncate flex-1 px-0.5">
-                          {!startsBeforeWeek && event.title}
-                        </span>
-                        
-                        {!endsAfterWeek && (
-                          <div
-                            onMouseDown={(e) => onResizeStart(event, 'end', effectiveEnd, e)}
-                            className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-gradient-to-l from-white/40 to-transparent transition-opacity"
-                          />
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                        <div
+                          onMouseDown={(e) => onEventMouseDown(event, effectiveStart, e)}
+                          onClick={(e) => onEventClick(event, e)}
+                          onContextMenu={(e) => onEventContextMenu(event, e)}
+                          onMouseEnter={(e) => onEventMouseEnter(event, e)}
+                          onMouseLeave={onEventMouseLeave}
+                          className={clsx(
+                            'h-full mx-0.5 rounded flex items-center text-white text-[8px] font-medium cursor-grab active:cursor-grabbing transition-all relative overflow-hidden',
+                            colors.bg,
+                            'hover:shadow-md hover:scale-[1.02]',
+                            isBeingModified && 'shadow-lg scale-[1.02] ring-2 ring-white/50',
+                            !startsBeforeWeek && 'rounded-l pl-0.5',
+                            !endsAfterWeek && 'rounded-r pr-0.5',
+                            startsBeforeWeek && 'rounded-l-none',
+                            endsAfterWeek && 'rounded-r-none'
+                          )}
+                        >
+                          {!startsBeforeWeek && (
+                            <div
+                              onMouseDown={(e) => onResizeStart(event, 'start', effectiveStart, e)}
+                              className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-gradient-to-r from-white/40 to-transparent transition-opacity"
+                            />
+                          )}
+                          
+                          <span className="truncate flex-1 px-0.5">
+                            {!startsBeforeWeek && event.title}
+                          </span>
+                          
+                          {!endsAfterWeek && (
+                            <div
+                              onMouseDown={(e) => onResizeStart(event, 'end', effectiveEnd, e)}
+                              className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-gradient-to-l from-white/40 to-transparent transition-opacity"
+                            />
+                          )}
+                        </div>
+                      </motion.div>
+                   );
+                  });
+                })()}
               </AnimatePresence>
               {/* Show +N more indicator if there are hidden events */}
               {weekEvents.length > maxEventsPerWeek && (
