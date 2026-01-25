@@ -17,7 +17,7 @@ model Event {
   description String?
   startDate   DateTime
   endDate     DateTime
-  planType    String
+  planType    String?
   color       String
   isAllDay    Boolean  @default(false)
   tags        String[] @default([])

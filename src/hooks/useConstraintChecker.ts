@@ -15,7 +15,7 @@ function checkConstraints(events: PlanEvent[], constraints: Constraint[]): Const
     if (rule.type === 'no-weekend') {
       const planTypes = rule.params.planTypes as string[];
       for (const event of events) {
-        if (planTypes.includes(event.planType)) {
+        if (event.planType && planTypes.includes(event.planType)) {
           const day = event.startDate.getDay();
           if (day === 0 || day === 6) {
             violations.push({
@@ -36,7 +36,7 @@ function checkConstraints(events: PlanEvent[], constraints: Constraint[]): Const
       const minDays = rule.params.minDays as number;
       
       const relevantEvents = events
-        .filter((e) => planTypes.includes(e.planType))
+        .filter((e) => e.planType && planTypes.includes(e.planType))
         .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
       for (let i = 0; i < relevantEvents.length - 1; i++) {
@@ -61,7 +61,7 @@ function checkConstraints(events: PlanEvent[], constraints: Constraint[]): Const
 
     if (rule.type === 'no-overlap') {
       const planTypes = rule.params.planTypes as string[];
-      const relevantEvents = events.filter((e) => planTypes.includes(e.planType));
+      const relevantEvents = events.filter((e) => e.planType && planTypes.includes(e.planType));
 
       for (let i = 0; i < relevantEvents.length; i++) {
         for (let j = i + 1; j < relevantEvents.length; j++) {

@@ -20,7 +20,7 @@ function YearMonth({ monthDate, onClick }: YearMonthProps) {
   const getEventsForDate = (date: Date) => {
     return events.filter(
       (event) =>
-        (selectedPlanTypes.length === 0 || selectedPlanTypes.includes(event.planType)) &&
+        (selectedPlanTypes.length === 0 || !event.planType || selectedPlanTypes.includes(event.planType)) &&
         isWithinInterval(date, { start: event.startDate, end: event.endDate })
     );
   };
@@ -28,7 +28,7 @@ function YearMonth({ monthDate, onClick }: YearMonthProps) {
   const getEventsForDateRange = (start: Date, end: Date) => {
     return events.filter(
       (event) =>
-        (selectedPlanTypes.length === 0 || selectedPlanTypes.includes(event.planType)) &&
+        (selectedPlanTypes.length === 0 || !event.planType || selectedPlanTypes.includes(event.planType)) &&
         (isWithinInterval(event.startDate, { start, end }) ||
           isWithinInterval(event.endDate, { start, end }) ||
           (event.startDate <= start && event.endDate >= end))

@@ -69,7 +69,7 @@ export function EventModal() {
     description: string;
     startDate: string;
     endDate: string;
-    planType: PlanType;
+    planType: PlanType | '';
     color: EventColor;
     priority: 'low' | 'medium' | 'high' | 'urgent';
     tags: string;
@@ -103,7 +103,7 @@ export function EventModal() {
         description: selectedEvent.description || '',
         startDate: format(new Date(selectedEvent.startDate), 'yyyy-MM-dd'),
         endDate: format(new Date(selectedEvent.endDate), 'yyyy-MM-dd'),
-        planType: selectedEvent.planType,
+        planType: selectedEvent.planType || '',
         color: selectedEvent.color,
         priority: selectedEvent.priority || 'medium',
         tags: selectedEvent.tags?.join(', ') || '',

@@ -157,7 +157,7 @@ function CompactMonth({
   const getEventsForDate = (date: Date) => {
     return events.filter(
       (event) =>
-        (selectedPlanTypes.length === 0 || selectedPlanTypes.includes(event.planType)) &&
+        (selectedPlanTypes.length === 0 || !event.planType || selectedPlanTypes.includes(event.planType)) &&
         isWithinInterval(date, { start: event.startDate, end: event.endDate })
     );
   };
@@ -226,7 +226,8 @@ function CompactMonth({
     const visibleStart = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
     const visibleEnd = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 });
     return events.filter(event => {
-      if (selectedPlanTypes.length > 0 && !selectedPlanTypes.includes(event.planType)) return false;
+      // Show events with no plan type, or if selected in filter
+      if (selectedPlanTypes.length > 0 && event.planType && !selectedPlanTypes.includes(event.planType)) return false;
       const eventStart = startOfDay(new Date(event.startDate));
       const eventEnd = startOfDay(new Date(event.endDate));
       return eventStart <= visibleEnd && eventEnd >= visibleStart;

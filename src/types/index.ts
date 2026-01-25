@@ -171,7 +171,7 @@ export interface PlanEvent {
   description?: string;
   startDate: Date;
   endDate: Date;
-  planType: PlanType;
+  planType?: PlanType;
   color: EventColor;
   isAllDay?: boolean;
   tags?: string[];
