@@ -562,50 +562,52 @@ export function Sidebar() {
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-2 overflow-hidden"
                   >
-                    {tasks.slice(0, 5).map((task) => (
-                      <motion.div
-                        key={task.id}
-                        whileHover={{ x: 4 }}
-                        className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 group"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <button
-                              onClick={() => {
-                                const nextStatus: Record<Task['status'], Task['status']> = {
-                                  'todo': 'in-progress',
-                                  'in-progress': 'scheduled',
-                                  'scheduled': 'done',
-                                  'done': 'todo',
-                                };
-                                updateTask(task.id, { status: nextStatus[task.status] });
-                              }}
-                              className="mt-0.5"
-                            >
-                              {getTaskStatusIcon(task.status)}
-                            </button>
-                            <div className="flex-1 min-w-0">
-                              <p className={clsx(
-                                'text-sm font-medium truncate',
-                                task.status === 'done' 
-                                  ? 'text-gray-400 dark:text-gray-500 line-through' 
-                                  : task.status === 'scheduled'
-                                  ? 'text-purple-600 dark:text-purple-400'
-                                  : 'text-gray-800 dark:text-gray-200'
-                              )}>
-                                {task.title}
-                              </p>
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {tasks.map((task) => (
+                        <motion.div
+                          key={task.id}
+                          whileHover={{ x: 4 }}
+                          className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <button
+                                onClick={() => {
+                                  const nextStatus: Record<Task['status'], Task['status']> = {
+                                    'todo': 'in-progress',
+                                    'in-progress': 'scheduled',
+                                    'scheduled': 'done',
+                                    'done': 'todo',
+                                  };
+                                  updateTask(task.id, { status: nextStatus[task.status] });
+                                }}
+                                className="mt-0.5"
+                              >
+                                {getTaskStatusIcon(task.status)}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <p className={clsx(
+                                  'text-sm font-medium truncate',
+                                  task.status === 'done' 
+                                    ? 'text-gray-400 dark:text-gray-500 line-through' 
+                                    : task.status === 'scheduled'
+                                    ? 'text-purple-600 dark:text-purple-400'
+                                    : 'text-gray-800 dark:text-gray-200'
+                                )}>
+                                  {task.title}
+                                </p>
+                              </div>
                             </div>
+                            <button
+                              onClick={() => deleteTask(task.id)}
+                              className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => deleteTask(task.id)}
-                            className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      ))}
+                    </div>
 
                     {/* Add new task */}
                     {!showAddTask ? (

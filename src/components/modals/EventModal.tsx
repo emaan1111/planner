@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/store/uiStore';
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/useEventsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
+import { useProjects } from '@/hooks/useProjectsQuery';
 import { PlanEvent, PlanType, EventColor, colorClasses, RecurrencePattern } from '@/types';
-import { X, Calendar, Clock, Tag, Flag, Palette, Trash2, Copy, Save, Sparkles, Repeat, ChevronDown } from 'lucide-react';
+import { X, Calendar, Clock, Tag, Flag, Palette, Trash2, Copy, Save, Sparkles, Repeat, ChevronDown, FolderKanban } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import { toast } from '@/components/ui/Toast';
@@ -39,6 +40,7 @@ export function EventModal() {
   } = useUIStore();
 
   const { data: planTypes = [] } = usePlanTypes();
+  const { data: projects = [] } = useProjects();
   const createEventMutation = useCreateEvent();
   const updateEventMutation = useUpdateEvent();
   const deleteEventMutation = useDeleteEvent();
@@ -77,6 +79,7 @@ export function EventModal() {
     recurrence: '' | 'daily' | 'weekly' | 'monthly' | 'yearly';
     recurrenceInterval: number;
     recurrenceEndDate: string;
+    projectId: string;
   }>({
     title: '',
     description: '',
@@ -90,6 +93,7 @@ export function EventModal() {
     recurrence: '',
     recurrenceInterval: 1,
     recurrenceEndDate: '',
+    projectId: '',
   });
 
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -113,6 +117,7 @@ export function EventModal() {
         recurrenceEndDate: selectedEvent.recurrence?.endDate 
           ? format(new Date(selectedEvent.recurrence.endDate), 'yyyy-MM-dd') 
           : '',
+        projectId: selectedEvent.projectId || '',
       });
       setShowRecurrenceOptions(!!selectedEvent.recurrence);
     } else {
@@ -133,6 +138,7 @@ export function EventModal() {
         recurrence: '',
         recurrenceInterval: 1,
         recurrenceEndDate: '',
+        projectId: '',
       });
       setShowRecurrenceOptions(false);
     }
@@ -177,6 +183,7 @@ export function EventModal() {
       isAllDay: true,
       status: 'planned' as const,
       recurrence,
+      projectId: formData.projectId || undefined,
     };
 
     if (selectedEvent) {
@@ -376,6 +383,26 @@ export function EventModal() {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Project */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <FolderKanban className="w-4 h-4" />
+                  Project
+                </label>
+                <select
+                  value={formData.projectId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, projectId: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">No project</option>
+                  {projects.filter(p => p.isActive).map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Dates */}

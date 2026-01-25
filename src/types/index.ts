@@ -38,8 +38,19 @@ export interface PlanningContext {
 
 // AI Action types for the assistant to execute
 export interface AIAction {
-  type: 'add_event' | 'update_event' | 'delete_event' | 'add_task' | 'add_plan_type' | 'delete_plan_type' | 'add_constraint';
+  type: 'add_event' | 'update_event' | 'delete_event' | 'add_task' | 'add_plan_type' | 'delete_plan_type' | 'add_constraint' | 'add_project';
   payload: Record<string, unknown>;
+}
+
+// Project for organizing events, tasks, and decisions
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  color: EventColor;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Task Management
@@ -52,6 +63,8 @@ export interface Task {
   dueDate?: Date;
   linkedPlanType?: PlanType;
   linkedEventId?: string;
+  projectId?: string;
+  order?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +78,7 @@ export interface KeyDecision {
   outcome?: string;
   linkedPlanType?: PlanType;
   linkedEventId?: string;
+  projectId?: string;
   decidedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -179,6 +193,7 @@ export interface PlanEvent {
   status?: 'planned' | 'in-progress' | 'completed' | 'cancelled';
   constraints?: Constraint[];
   notes?: string;
+  projectId?: string;
   recurrence?: RecurrencePattern;
   parentEventId?: string; // For recurring event instances
   createdAt: Date;

@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
           {
             role: 'system',
             content: `You are an expert planning assistant helping users create and optimize their plans. 
-You have access to the user's current events, constraints, planning context, and any violations.
+You have access to the user's current events, constraints, planning context, projects, and any violations.
 
 Current Date: ${new Date().toISOString().split('T')[0]}
 Current Year: ${new Date().getFullYear()}
@@ -39,6 +39,7 @@ Current Year: ${new Date().getFullYear()}
 Current Context:
 - Events: ${JSON.stringify(context.events || [])}
 - Tasks: ${JSON.stringify(context.tasks || [])}
+- Projects: ${JSON.stringify(context.projects || [])}
 - Constraints: ${JSON.stringify(context.constraints || [])}
 - Planning Context (user-defined rules/assumptions): ${JSON.stringify(context.planningContext || [])}
 - Available Plan Types: ${JSON.stringify(context.planTypes || [])}
@@ -54,17 +55,19 @@ You can suggest actions to modify the calendar. When suggesting actions, format 
     "endDate": "${new Date().getFullYear()}-02-15",
     "planType": "marketing",
     "color": "blue",
-    "description": "Event description"
+    "description": "Event description",
+    "projectId": "optional-project-id"
   }
 }
 \`\`\`
 
 Available actions:
-- add_event: Create new event (requires: title, startDate, endDate, planType). IMPORTANT: planType MUST be one of the Available Plan Types listed above (use the "name" field).
-- update_event: Update event (requires: id, plus fields to update)
+- add_event: Create new event (requires: title, startDate, endDate, planType). Optional: projectId to associate with a project. IMPORTANT: planType MUST be one of the Available Plan Types listed above (use the "name" field).
+- update_event: Update event (requires: id, plus fields to update). Can update projectId to change project association.
 - delete_event: Delete event (requires: id)
-- add_task: Create a new task (requires: title, linkedPlanType. Optional: description, status [todo|in-progress|done], priority [low|medium|high], dueDate, linkedEventId)
+- add_task: Create a new task (requires: title, linkedPlanType. Optional: description, status [todo|in-progress|done], priority [low|medium|high], dueDate, linkedEventId, projectId)
 - add_plan_type: Add custom plan type (requires: name, label, color)
+- add_project: Create a new project (requires: name. Optional: description, color [default: blue])
 
 IMPORTANT: 
 - Always respect the user's planning context (constraints, assumptions, goals, preferences).
@@ -72,6 +75,8 @@ IMPORTANT:
 - When creating tasks, linkedPlanType is REQUIRED and MUST be one of the Available Plan Types (use the "name" field).
 - Use the color from the plan type when creating events.
 - ALWAYS use the current year (${new Date().getFullYear()}) for dates. Never use past years like 2024.
+- When users mention a project, check if it exists in the Projects list. If not, suggest creating it with add_project first.
+- You can associate events and tasks with projects using the projectId field.
 Be concise, actionable, and specific in your recommendations.`,
           },
           {
@@ -238,10 +243,25 @@ function generateActions(message: string, context: any): any[] {
   const actions: any[] = [];
   const lowerMessage = message.toLowerCase();
   const planTypes = context.planTypes || [];
+  const projects = context.projects || [];
   
   // Get the first available plan type, or null if none exist
   const getDefaultPlanType = () => planTypes.length > 0 ? planTypes[0] : null;
   const findPlanType = (name: string) => planTypes.find((pt: any) => pt.name.toLowerCase().includes(name.toLowerCase()));
+  const findProject = (name: string) => projects.find((p: any) => p.name.toLowerCase().includes(name.toLowerCase()));
+  
+  // Check for project creation request
+  if (lowerMessage.includes('project') && (lowerMessage.includes('create') || lowerMessage.includes('add') || lowerMessage.includes('new'))) {
+    actions.push({
+      action: 'add_project',
+      payload: {
+        name: 'New Project',
+        description: 'Project created by AI assistant',
+        color: 'blue',
+      },
+      description: 'Create a new project',
+    });
+  }
   
   // Generate sample actions based on common requests
   if (lowerMessage.includes('add') && lowerMessage.includes('event')) {

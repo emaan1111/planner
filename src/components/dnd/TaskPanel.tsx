@@ -1,25 +1,126 @@
 'use client';
 
-import { useDraggable } from '@dnd-kit/core';
+import { useDraggable, DndContext, closestCenter, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasksQuery';
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useReorderTasks } from '@/hooks/useTasksQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
-import { Task } from '@/types';
-import { GripVertical, X, CheckSquare, Circle, Check, Plus, Trash2, Pencil, Filter, GripHorizontal } from 'lucide-react';
+import { Task, colorClasses, EventColor, PlanTypeConfig } from '@/types';
+import { GripVertical, X, CheckSquare, Circle, Check, Plus, Trash2, Pencil, Filter, GripHorizontal, Move } from 'lucide-react';
 import clsx from 'clsx';
 import { useUIStore } from '@/store/uiStore';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 
+// Helper to get border color class from plan type
+function getPlanTypeBorderClass(linkedPlanType: string | undefined, planTypes: PlanTypeConfig[]): string {
+  if (!linkedPlanType) return 'border-l-gray-400';
+  const pt = planTypes.find(p => p.name === linkedPlanType);
+  if (!pt) return 'border-l-gray-400';
+  const colorClass = colorClasses[pt.color as EventColor];
+  return colorClass ? colorClass.border.replace('border-', 'border-l-') : 'border-l-gray-400';
+}
+
+interface SortableTaskProps {
+  task: Task;
+  onEdit: (task: Task) => void;
+  onDelete: (id: string) => void;
+  isDragOverlay?: boolean;
+  planTypes: PlanTypeConfig[];
+}
+
+function SortableTask({ task, onEdit, onDelete, isDragOverlay, planTypes }: SortableTaskProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: { task },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const getTaskStatusIcon = (status: Task['status']) => {
+    switch (status) {
+      case 'done':
+        return <Check className="w-3.5 h-3.5 text-green-500" />;
+      case 'in-progress':
+        return <Circle className="w-3.5 h-3.5 text-blue-500 fill-blue-500" />;
+      case 'scheduled':
+        return <Circle className="w-3.5 h-3.5 text-purple-500 fill-purple-500" />;
+      default:
+        return <Circle className="w-3.5 h-3.5 text-gray-400" />;
+    }
+  };
+
+  if (task.status === 'done' || task.status === 'scheduled') return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={clsx(
+        'flex items-center gap-2 p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all border-l-4 group',
+        getPlanTypeBorderClass(task.linkedPlanType, planTypes),
+        isDragging && !isDragOverlay && 'opacity-30',
+        isDragOverlay && 'shadow-xl scale-105 opacity-95',
+        'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+      )}
+    >
+      <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing touch-none">
+        <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      </div>
+      <span className="flex-shrink-0">{getTaskStatusIcon(task.status)}</span>
+      <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">
+        {task.title}
+      </span>
+      {!isDragOverlay && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(task);
+            }}
+            className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+            title="Edit task"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(task.id);
+            }}
+            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+            title="Delete task"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Draggable task for dragging to calendar (used with parent DndContext)
 interface DraggableTaskProps {
   task: Task;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  planTypes: PlanTypeConfig[];
 }
 
-function DraggableTask({ task, onEdit, onDelete }: DraggableTaskProps) {
+function DraggableTask({ task, onEdit, onDelete, planTypes }: DraggableTaskProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-    data: { task },
+    id: `drag-to-calendar-${task.id}`,
+    data: { task, type: 'calendar-drop' },
   });
 
   const style = transform
@@ -41,17 +142,6 @@ function DraggableTask({ task, onEdit, onDelete }: DraggableTaskProps) {
     }
   };
 
-  const getPriorityColor = (priority: Task['priority']) => {
-    switch (priority) {
-      case 'high':
-        return 'border-l-red-500';
-      case 'medium':
-        return 'border-l-amber-500';
-      default:
-        return 'border-l-green-500';
-    }
-  };
-
   if (task.status === 'done' || task.status === 'scheduled') return null;
 
   return (
@@ -63,7 +153,7 @@ function DraggableTask({ task, onEdit, onDelete }: DraggableTaskProps) {
       exit={{ opacity: 0, x: -10 }}
       className={clsx(
         'flex items-center gap-2 p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all border-l-4 group',
-        getPriorityColor(task.priority),
+        getPlanTypeBorderClass(task.linkedPlanType, planTypes),
         isDragging && 'opacity-50 shadow-lg scale-105',
         'hover:bg-gray-50 dark:hover:bg-gray-700/50'
       )}
@@ -114,6 +204,7 @@ export function TaskPanel() {
   const createTaskMutation = useCreateTask();
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
+  const reorderMutation = useReorderTasks();
 
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -123,11 +214,54 @@ export function TaskPanel() {
     priority: 'medium',
     linkedPlanType: '',
   });
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [reorderMode, setReorderMode] = useState(false);
 
   // Resize state
   const [panelSize, setPanelSize] = useState({ width: 320, height: 450 });
   const [isResizing, setIsResizing] = useState<'width' | 'height' | 'both' | null>(null);
   const resizeStartRef = useRef({ x: 0, y: 0, width: 320, height: 450 });
+
+  // Position state for draggable panel
+  const [panelPosition, setPanelPosition] = useState({ x: 0, y: 0 });
+  const [isDraggingPanel, setIsDraggingPanel] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+
+  const handlePanelDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingPanel(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: panelPosition.x,
+      posY: panelPosition.y,
+    };
+  }, [panelPosition]);
+
+  useEffect(() => {
+    if (!isDraggingPanel) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragStartRef.current.x;
+      const deltaY = e.clientY - dragStartRef.current.y;
+
+      setPanelPosition({
+        x: dragStartRef.current.posX + deltaX,
+        y: dragStartRef.current.posY + deltaY,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingPanel(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingPanel]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, direction: 'width' | 'height' | 'both') => {
     e.preventDefault();
@@ -165,14 +299,39 @@ export function TaskPanel() {
     };
   }, [isResizing]);
 
-  const draggableTasks = tasks.filter(t => {
+  const draggableTasks = useMemo(() => tasks.filter(t => {
     // Filter out done and scheduled tasks
     if (t.status === 'done' || t.status === 'scheduled') return false;
     // Apply plan type filter
     if (filterPlanType === 'all') return true;
     if (filterPlanType === 'none') return !t.linkedPlanType;
     return t.linkedPlanType === filterPlanType;
-  });
+  }), [tasks, filterPlanType]);
+
+  const taskIds = useMemo(() => draggableTasks.map(t => t.id), [draggableTasks]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const task = draggableTasks.find(t => t.id === event.active.id);
+    if (task) {
+      setActiveTask(task);
+    }
+  }, [draggableTasks]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+
+    if (over && active.id !== over.id) {
+      const oldIndex = draggableTasks.findIndex(t => t.id === active.id);
+      const newIndex = draggableTasks.findIndex(t => t.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
+        const orderedIds = reorderedTasks.map(t => t.id);
+        reorderMutation.mutate(orderedIds);
+      }
+    }
+  }, [draggableTasks, reorderMutation]);
 
   const resetForm = () => {
     setFormData({ title: '', priority: 'medium', linkedPlanType: '' });
@@ -225,10 +384,15 @@ export function TaskPanel() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 300 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          style={{ width: panelSize.width, height: panelSize.height }}
+          style={{ 
+            width: panelSize.width, 
+            height: panelSize.height,
+            right: `calc(1rem - ${panelPosition.x}px)`,
+            top: `calc(5rem + ${panelPosition.y}px)`,
+          }}
           className={clsx(
-            "fixed right-4 top-20 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 z-40 overflow-hidden flex flex-col",
-            isResizing && "select-none"
+            "fixed bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 z-40 overflow-hidden flex flex-col",
+            (isResizing || isDraggingPanel) && "select-none"
           )}
         >
           {/* Resize handle - left edge */}
@@ -252,8 +416,15 @@ export function TaskPanel() {
           </div>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 flex-shrink-0">
+          <div 
+            onMouseDown={handlePanelDragStart}
+            className={clsx(
+              "flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 flex-shrink-0",
+              isDraggingPanel ? "cursor-grabbing" : "cursor-grab"
+            )}
+          >
             <div className="flex items-center gap-2 text-white">
+              <Move className="w-4 h-4 opacity-60" />
               <CheckSquare className="w-5 h-5" />
               <span className="font-semibold">Tasks</span>
               {draggableTasks.length > 0 && (
@@ -264,7 +435,8 @@ export function TaskPanel() {
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   resetForm();
                   setShowForm(!showForm);
                 }}
@@ -274,7 +446,10 @@ export function TaskPanel() {
                 <Plus className="w-4 h-4 text-white" />
               </button>
               <button
-                onClick={toggleTaskPanel}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleTaskPanel();
+                }}
                 className="p-1 hover:bg-white/20 rounded transition-colors"
               >
                 <X className="w-4 h-4 text-white" />
@@ -360,9 +535,24 @@ export function TaskPanel() {
                   <option key={pt.id} value={pt.name}>{pt.label}</option>
                 ))}
               </select>
+              <button
+                onClick={() => setReorderMode(!reorderMode)}
+                className={clsx(
+                  "px-2 py-1 text-xs rounded border transition-colors",
+                  reorderMode 
+                    ? "bg-blue-500 text-white border-blue-500" 
+                    : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+                )}
+                title={reorderMode ? "Switch to calendar drag mode" : "Switch to reorder mode"}
+              >
+                {reorderMode ? "Reorder" : "Schedule"}
+              </button>
             </div>
             <p className="text-xs text-blue-600 dark:text-blue-400">
-              Drag tasks to calendar to schedule them
+              {reorderMode 
+                ? "Drag tasks to reorder them"
+                : "Drag tasks to calendar to schedule them"
+              }
             </p>
           </div>
 
@@ -379,6 +569,37 @@ export function TaskPanel() {
                   Add a task
                 </button>
               </div>
+            ) : reorderMode ? (
+              <DndContext
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {draggableTasks.map(task => (
+                      <SortableTask 
+                        key={task.id} 
+                        task={task} 
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        planTypes={planTypes}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+                <DragOverlay>
+                  {activeTask ? (
+                    <SortableTask 
+                      task={activeTask} 
+                      onEdit={() => {}}
+                      onDelete={() => {}}
+                      isDragOverlay
+                      planTypes={planTypes}
+                    />
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             ) : (
               draggableTasks.map(task => (
                 <DraggableTask 
@@ -386,6 +607,7 @@ export function TaskPanel() {
                   task={task} 
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  planTypes={planTypes}
                 />
               ))
             )}

@@ -24,8 +24,7 @@ export async function GET(request: NextRequest) {
     const tasks = await prisma.task.findMany({
       where,
       orderBy: [
-        { status: 'asc' },
-        { priority: 'desc' },
+        { order: 'asc' },
         { createdAt: 'desc' },
       ],
       include: {
@@ -44,12 +43,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.linkedPlanType) {
-      return NextResponse.json(
-        { error: 'linkedPlanType is required' },
-        { status: 400 }
-      );
-    }
+    
+    // Get the highest order value to place new task at the end
+    const maxOrderTask = await prisma.task.findFirst({
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+    const nextOrder = (maxOrderTask?.order ?? -1) + 1;
 
     const task = await prisma.task.create({
       data: {
@@ -58,8 +58,9 @@ export async function POST(request: NextRequest) {
         status: body.status ?? 'todo',
         priority: body.priority ?? 'medium',
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
-        linkedPlanType: body.linkedPlanType,
+        linkedPlanType: body.linkedPlanType || null,
         linkedEventId: body.linkedEventId,
+        order: nextOrder,
       },
     });
 
@@ -67,5 +68,32 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating task:', error);
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
+  }
+}
+
+// PATCH reorder tasks
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { orderedIds } = body as { orderedIds: string[] };
+
+    if (!orderedIds || !Array.isArray(orderedIds)) {
+      return NextResponse.json({ error: 'orderedIds array is required' }, { status: 400 });
+    }
+
+    // Update each task's order based on its position in the array
+    const updates = orderedIds.map((id, index) =>
+      prisma.task.update({
+        where: { id },
+        data: { order: index },
+      })
+    );
+
+    await prisma.$transaction(updates);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error reordering tasks:', error);
+    return NextResponse.json({ error: 'Failed to reorder tasks' }, { status: 500 });
   }
 }

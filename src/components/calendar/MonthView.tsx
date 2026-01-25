@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
 import { DroppableCalendarCell } from '@/components/dnd';
+import { useRouter } from 'next/navigation';
 
 interface ResizeState {
   eventId: string;
@@ -31,6 +32,7 @@ interface TooltipState {
 
 export function MonthView() {
   const { currentDate, openEventModal, selectedPlanTypes, cutEvent, copyEvent, clipboardEvent, setCurrentDate, clearClipboard } = useUIStore();
+  const router = useRouter();
   const { data: events = [] } = useEvents();
   const updateEventMutation = useUpdateEvent();
   const deleteEventMutation = useDeleteEvent();
@@ -69,8 +71,18 @@ export function MonthView() {
   const [contextMenu, setContextMenu] = useState<{ event: PlanEvent; position: { x: number; y: number } } | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const tooltipTimeout = useRef<NodeJS.Timeout | null>(null);
+  const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  
+  // Refs to track current state for event handlers (avoids stale closures)
+  const resizingRef = useRef<ResizeState | null>(null);
+  const draggingRef = useRef<DragState | null>(null);
+  const isDragging = useRef(false);
+  
+  // Keep refs in sync with state
+  useEffect(() => { resizingRef.current = resizing; }, [resizing]);
+  useEffect(() => { draggingRef.current = dragging; }, [dragging]);
 
   const days = useMemo(() => {
     const start = startOfWeek(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1), { weekStartsOn: 1 });
@@ -125,6 +137,9 @@ export function MonthView() {
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!containerRef.current) return;
     
+    // Only process if actively dragging (using ref to avoid stale closure)
+    if (!isDragging.current) return;
+    
     // Find which cell the mouse is over
     let foundDate: Date | null = null;
     cellRefs.current.forEach((cell, dateStr) => {
@@ -137,31 +152,30 @@ export function MonthView() {
     
     if (foundDate) {
       setHoveredDate(foundDate);
-      
-      if (resizing) {
-        setResizing(prev => prev ? { ...prev, currentDate: foundDate! } : null);
-      }
-      if (dragging) {
-        setDragging(prev => prev ? { ...prev, currentDate: foundDate! } : null);
-      }
+      setResizing(prev => prev ? { ...prev, currentDate: foundDate! } : null);
+      setDragging(prev => prev ? { ...prev, currentDate: foundDate! } : null);
     }
-  }, [resizing, dragging]);
+  }, []);
 
   // Handle mouse up to complete resize/drag
   const handleMouseUp = useCallback(() => {
-    if (resizing) {
-      const event = events.find(e => e.id === resizing.eventId);
+    // Use refs to get current state values (avoids stale closures)
+    const currentResizing = resizingRef.current;
+    const currentDragging = draggingRef.current;
+    
+    if (currentResizing) {
+      const event = events.find(e => e.id === currentResizing.eventId);
       if (event) {
         const eventStart = new Date(event.startDate);
         const eventEnd = new Date(event.endDate);
         
-        if (resizing.edge === 'start') {
-          const newStart = startOfDay(resizing.currentDate);
+        if (currentResizing.edge === 'start') {
+          const newStart = startOfDay(currentResizing.currentDate);
           if (newStart <= eventEnd) {
             resizeEvent(event.id, newStart, eventEnd);
           }
         } else {
-          const newEnd = startOfDay(resizing.currentDate);
+          const newEnd = startOfDay(currentResizing.currentDate);
           if (newEnd >= eventStart) {
             resizeEvent(event.id, eventStart, newEnd);
           }
@@ -170,10 +184,10 @@ export function MonthView() {
       setResizing(null);
     }
     
-    if (dragging) {
-      const event = events.find(e => e.id === dragging.eventId);
+    if (currentDragging) {
+      const event = events.find(e => e.id === currentDragging.eventId);
       if (event) {
-        const daysDiff = differenceInDays(dragging.currentDate, dragging.initialDate);
+        const daysDiff = differenceInDays(currentDragging.currentDate, currentDragging.initialDate);
         const newStart = addDays(new Date(event.startDate), daysDiff);
         const newEnd = addDays(new Date(event.endDate), daysDiff);
         moveEvent(event.id, newStart, newEnd);
@@ -181,29 +195,30 @@ export function MonthView() {
       setDragging(null);
     }
     
+    isDragging.current = false;
     setHoveredDate(null);
-  }, [resizing, dragging, events, resizeEvent, moveEvent]);
+  }, [events, resizeEvent, moveEvent]);
 
-  // Add/remove global event listeners
+  // Add/remove global event listeners (always attached for immediate response)
   useEffect(() => {
-    if (resizing || dragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [resizing, dragging, handleMouseMove, handleMouseUp]);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   const handleResizeStart = (e: React.MouseEvent, eventId: string, edge: 'start' | 'end', date: Date) => {
     e.stopPropagation();
     e.preventDefault();
+    isDragging.current = true;
     setResizing({ eventId, edge, initialDate: date, currentDate: date });
   };
 
   const handleDragStart = (e: React.MouseEvent, eventId: string, date: Date) => {
     e.stopPropagation();
+    isDragging.current = true;
     setDragging({ eventId, initialDate: date, currentDate: date });
   };
 
@@ -211,11 +226,20 @@ export function MonthView() {
   const handleDayClick = (date: Date) => {
     if (!resizing && !dragging) {
       setCurrentDate(date);
+      if (clickTimeout.current) {
+        clearTimeout(clickTimeout.current);
+      }
+      clickTimeout.current = setTimeout(() => {
+        router.push(`/day/${format(date, 'yyyy-MM-dd')}`);
+      }, 220);
     }
   };
 
   const handleDayDoubleClick = (date: Date) => {
     if (!resizing && !dragging) {
+      if (clickTimeout.current) {
+        clearTimeout(clickTimeout.current);
+      }
       setCurrentDate(date);
       openEventModal();
     }

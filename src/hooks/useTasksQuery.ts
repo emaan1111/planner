@@ -14,7 +14,7 @@ async function fetchTasks(): Promise<Task[]> {
   }));
 }
 
-async function createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
+async function createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'order'>): Promise<Task> {
   const response = await fetch('/api/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -51,6 +51,15 @@ async function deleteTask(id: string): Promise<void> {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error('Failed to delete task');
+}
+
+async function reorderTasks(orderedIds: string[]): Promise<void> {
+  const response = await fetch('/api/tasks', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderedIds }),
+  });
+  if (!response.ok) throw new Error('Failed to reorder tasks');
 }
 
 // Query key factory
@@ -156,6 +165,47 @@ export function useDeleteTask() {
       return { previousTasks };
     },
     onError: (_error, _id, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.all, context.previousTasks);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+  });
+}
+
+// Hook to reorder tasks
+export function useReorderTasks() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: reorderTasks,
+    onMutate: async (orderedIds) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.all });
+      
+      const previousTasks = queryClient.getQueryData<Task[]>(taskKeys.all);
+      
+      if (previousTasks) {
+        // Reorder tasks based on orderedIds
+        const taskMap = new Map(previousTasks.map(t => [t.id, t]));
+        const reorderedTasks = orderedIds
+          .map(id => taskMap.get(id))
+          .filter((t): t is Task => t !== undefined);
+        
+        // Add any tasks not in orderedIds at the end
+        const orderedSet = new Set(orderedIds);
+        const remainingTasks = previousTasks.filter(t => !orderedSet.has(t.id));
+        
+        queryClient.setQueryData<Task[]>(
+          taskKeys.all,
+          [...reorderedTasks, ...remainingTasks].map((t, i) => ({ ...t, order: i }))
+        );
+      }
+      
+      return { previousTasks };
+    },
+    onError: (_error, _orderedIds, context) => {
       if (context?.previousTasks) {
         queryClient.setQueryData(taskKeys.all, context.previousTasks);
       }

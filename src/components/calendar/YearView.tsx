@@ -5,15 +5,18 @@ import { format, addMonths, startOfYear, eachMonthOfInterval, endOfYear, startOf
 import { useUIStore } from '@/store/uiStore';
 import { useEvents } from '@/hooks/useEventsQuery';
 import { PlanEvent, colorClasses } from '@/types';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import clsx from 'clsx';
+import { useRouter } from 'next/navigation';
 
 interface YearMonthProps {
   monthDate: Date;
   onClick: () => void;
+  onDayClick: (date: Date) => void;
+  onDayDoubleClick: (date: Date) => void;
 }
 
-function YearMonth({ monthDate, onClick }: YearMonthProps) {
+function YearMonth({ monthDate, onClick, onDayClick, onDayDoubleClick }: YearMonthProps) {
   const { selectedPlanTypes } = useUIStore();
   const { data: events = [] } = useEvents();
   
@@ -89,8 +92,16 @@ function YearMonth({ monthDate, onClick }: YearMonthProps) {
           return (
             <div
               key={date.toISOString()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDayClick(date);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                onDayDoubleClick(date);
+              }}
               className={clsx(
-                'aspect-square flex items-center justify-center rounded text-[10px]',
+                'aspect-square flex items-center justify-center rounded text-[10px] cursor-pointer',
                 dayIsToday && 'bg-blue-500 text-white font-bold',
                 !dayIsToday && inMonth && 'text-gray-600 dark:text-gray-400',
                 !inMonth && 'text-gray-300 dark:text-gray-700',
@@ -126,7 +137,9 @@ function YearMonth({ monthDate, onClick }: YearMonthProps) {
 }
 
 export function YearView() {
-  const { currentDate, setCurrentDate, setViewMode } = useUIStore();
+  const { currentDate, setCurrentDate, setViewMode, openEventModal } = useUIStore();
+  const router = useRouter();
+  const clickTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const months = useMemo(() => {
     const yearStart = startOfYear(currentDate);
@@ -137,6 +150,24 @@ export function YearView() {
   const handleMonthClick = (monthDate: Date) => {
     setCurrentDate(monthDate);
     setViewMode('month');
+  };
+
+  const handleDayClick = (date: Date) => {
+    setCurrentDate(date);
+    if (clickTimeout.current) {
+      clearTimeout(clickTimeout.current);
+    }
+    clickTimeout.current = setTimeout(() => {
+      router.push(`/day/${format(date, 'yyyy-MM-dd')}`);
+    }, 220);
+  };
+
+  const handleDayDoubleClick = (date: Date) => {
+    if (clickTimeout.current) {
+      clearTimeout(clickTimeout.current);
+    }
+    setCurrentDate(date);
+    openEventModal();
   };
 
   return (
@@ -165,6 +196,8 @@ export function YearView() {
               <YearMonth
                 monthDate={monthDate}
                 onClick={() => handleMonthClick(monthDate)}
+                onDayClick={handleDayClick}
+                onDayDoubleClick={handleDayDoubleClick}
               />
             </motion.div>
           ))}

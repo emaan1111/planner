@@ -3,10 +3,11 @@
 import { useState, useMemo } from 'react';
 import { useEvents, useDeleteEvent } from '@/hooks/useEventsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
+import { useProjects } from '@/hooks/useProjectsQuery';
 import { useUIStore } from '@/store/uiStore';
 import { PlanEvent, colorClasses } from '@/types';
 import { format, isAfter, isBefore, isToday, startOfDay } from 'date-fns';
-import { Trash2, Edit2, ArrowUpDown, Search, ChevronLeft } from 'lucide-react';
+import { Trash2, Edit2, ArrowUpDown, Search, ChevronLeft, FolderKanban } from 'lucide-react';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { EventModal } from '@/components/modals/EventModal';
@@ -18,6 +19,7 @@ type FilterStatus = 'all' | 'upcoming' | 'past' | 'today';
 export default function EventsListPage() {
   const { data: events = [], isLoading } = useEvents();
   const { data: planTypes = [] } = usePlanTypes();
+  const { data: projects = [] } = useProjects();
   const deleteEventMutation = useDeleteEvent();
   const { openEventModal, isEventModalOpen } = useUIStore();
 
@@ -25,6 +27,7 @@ export default function EventsListPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterPlanType, setFilterPlanType] = useState<string>('all');
+  const [filterProject, setFilterProject] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSort = (field: SortField) => {
@@ -59,6 +62,14 @@ export default function EventsListPage() {
         if (filterPlanType === 'none') {
           if (event.planType) return false;
         } else if (event.planType !== filterPlanType) {
+          return false;
+        }
+      }
+
+      if (filterProject !== 'all') {
+        if (filterProject === 'none') {
+          if (event.projectId) return false;
+        } else if (event.projectId !== filterProject) {
           return false;
         }
       }
@@ -99,7 +110,7 @@ export default function EventsListPage() {
     });
 
     return filtered;
-  }, [events, searchQuery, filterPlanType, filterStatus, sortField, sortDirection]);
+  }, [events, searchQuery, filterPlanType, filterProject, filterStatus, sortField, sortDirection]);
 
   const getPlanTypeLabel = (name: string | undefined) => {
     if (!name) return '—';
@@ -111,6 +122,12 @@ export default function EventsListPage() {
     if (!name) return 'gray';
     const pt = planTypes.find(p => p.name === name);
     return pt?.color || 'gray';
+  };
+
+  const getProjectName = (projectId: string | undefined) => {
+    if (!projectId) return null;
+    const project = projects.find(p => p.id === projectId);
+    return project?.name || null;
   };
 
   const SortHeader = ({ field, children, className }: { field: SortField; children: React.ReactNode; className?: string }) => (
@@ -181,6 +198,17 @@ export default function EventsListPage() {
                   <option key={pt.id} value={pt.name}>{pt.label}</option>
                 ))}
               </select>
+              <select
+                value={filterProject}
+                onChange={(e) => setFilterProject(e.target.value)}
+                className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="all">All Projects</option>
+                <option value="none">No Project</option>
+                {projects.filter(p => p.isActive).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -214,9 +242,17 @@ export default function EventsListPage() {
                   >
                     <div className="col-span-5 flex items-center gap-2 min-w-0">
                       <div className={clsx('w-1 h-5 rounded-full flex-shrink-0', colorClass.bg)} />
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {event.title}
-                      </span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {event.title}
+                        </span>
+                        {event.projectId && (
+                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <FolderKanban className="w-3 h-3" />
+                            {getProjectName(event.projectId)}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="col-span-3 text-xs text-gray-500 dark:text-gray-400">

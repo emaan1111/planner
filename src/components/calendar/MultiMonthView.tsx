@@ -9,6 +9,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import clsx from 'clsx';
 import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
+import { useRouter } from 'next/navigation';
 
 interface DragSelectionState {
   startDate: Date;
@@ -393,6 +394,7 @@ export function MultiMonthView() {
     clipboardEvent, 
     clearClipboard 
   } = useUIStore();
+  const router = useRouter();
   
   const { data: events = [] } = useEvents();
   const updateEventMutation = useUpdateEvent();
@@ -431,8 +433,19 @@ export function MultiMonthView() {
   const [contextMenu, setContextMenu] = useState<{ event: PlanEvent; position: { x: number; y: number } } | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const tooltipTimeout = useRef<NodeJS.Timeout | null>(null);
+  const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const isDragging = useRef(false);
+  
+  // Refs to track current state for event handlers (avoids stale closures)
+  const dragSelectionRef = useRef<DragSelectionState | null>(null);
+  const eventDragRef = useRef<EventDragState | null>(null);
+  const resizeRef = useRef<ResizeState | null>(null);
+  
+  // Keep refs in sync with state
+  useEffect(() => { dragSelectionRef.current = dragSelection; }, [dragSelection]);
+  useEffect(() => { eventDragRef.current = eventDrag; }, [eventDrag]);
+  useEffect(() => { resizeRef.current = resize; }, [resize]);
 
   const months = useMemo(() => {
     // Show current month and next 2 months (3 months total)
@@ -452,37 +465,44 @@ export function MultiMonthView() {
     });
 
     if (foundDate) {
-      if (dragSelection && isDragging.current) {
+      // Use functional updates to avoid stale closure issues
+      if (isDragging.current) {
         setDragSelection(prev => prev ? { ...prev, endDate: foundDate! } : null);
       }
-      if (eventDrag) {
-        setEventDrag(prev => prev ? { ...prev, currentDate: foundDate! } : null);
-      }
-      if (resize) {
-        setResize(prev => prev ? { ...prev, currentDate: foundDate! } : null);
-      }
+      setEventDrag(prev => prev ? { ...prev, currentDate: foundDate! } : null);
+      setResize(prev => prev ? { ...prev, currentDate: foundDate! } : null);
     }
-  }, [dragSelection, eventDrag, resize]);
+  }, []);
 
   // Handle mouse up to complete operations
   const handleMouseUp = useCallback(() => {
-    if (dragSelection && isDragging.current) {
-      const start = min([dragSelection.startDate, dragSelection.endDate]);
-      const end = max([dragSelection.startDate, dragSelection.endDate]);
+    const currentDragSelection = dragSelectionRef.current;
+    const currentEventDrag = eventDragRef.current;
+    const currentResize = resizeRef.current;
+    
+    if (currentDragSelection && isDragging.current) {
+      const start = min([currentDragSelection.startDate, currentDragSelection.endDate]);
+      const end = max([currentDragSelection.startDate, currentDragSelection.endDate]);
       
-      // Only open modal if we actually dragged to create a range
-      if (!isSameDay(start, end) || isDragging.current) {
+      if (isSameDay(start, end)) {
         setCurrentDate(start);
-        // Open modal with date range
+        if (clickTimeout.current) {
+          clearTimeout(clickTimeout.current);
+        }
+        clickTimeout.current = setTimeout(() => {
+          router.push(`/day/${format(start, 'yyyy-MM-dd')}`);
+        }, 220);
+      } else {
+        setCurrentDate(start);
         openEventModal(undefined, { startDate: start, endDate: end });
       }
       setDragSelection(null);
     }
 
-    if (eventDrag) {
-      const event = events.find(e => e.id === eventDrag.eventId);
+    if (currentEventDrag) {
+      const event = events.find(e => e.id === currentEventDrag.eventId);
       if (event) {
-        const daysDiff = differenceInDays(eventDrag.currentDate, eventDrag.initialDate);
+        const daysDiff = differenceInDays(currentEventDrag.currentDate, currentEventDrag.initialDate);
         if (daysDiff !== 0) {
           const newStart = addDays(new Date(event.startDate), daysDiff);
           const newEnd = addDays(new Date(event.endDate), daysDiff);
@@ -492,19 +512,19 @@ export function MultiMonthView() {
       setEventDrag(null);
     }
 
-    if (resize) {
-      const event = events.find(e => e.id === resize.eventId);
+    if (currentResize) {
+      const event = events.find(e => e.id === currentResize.eventId);
       if (event) {
         const eventStart = new Date(event.startDate);
         const eventEnd = new Date(event.endDate);
         
-        if (resize.edge === 'start') {
-          const newStart = startOfDay(resize.currentDate);
+        if (currentResize.edge === 'start') {
+          const newStart = startOfDay(currentResize.currentDate);
           if (newStart <= eventEnd) {
             resizeEvent(event.id, newStart, eventEnd);
           }
         } else {
-          const newEnd = startOfDay(resize.currentDate);
+          const newEnd = startOfDay(currentResize.currentDate);
           if (newEnd >= eventStart) {
             resizeEvent(event.id, eventStart, newEnd);
           }
@@ -514,19 +534,17 @@ export function MultiMonthView() {
     }
 
     isDragging.current = false;
-  }, [dragSelection, eventDrag, resize, events, moveEvent, resizeEvent, openEventModal, setCurrentDate]);
+  }, [events, moveEvent, resizeEvent, openEventModal, setCurrentDate, router]);
 
-  // Add/remove global event listeners
+  // Add global event listeners (always attached for immediate response)
   useEffect(() => {
-    if (dragSelection || eventDrag || resize) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [dragSelection, eventDrag, resize, handleMouseMove, handleMouseUp]);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   // Handlers for day interactions
   const handleDayMouseDown = useCallback((date: Date, e: React.MouseEvent) => {
@@ -537,12 +555,16 @@ export function MultiMonthView() {
   }, []);
 
   const handleDayMouseEnter = useCallback((date: Date) => {
-    if (dragSelection && isDragging.current) {
+    // Only check ref to avoid stale closure issues
+    if (isDragging.current) {
       setDragSelection(prev => prev ? { ...prev, endDate: date } : null);
     }
-  }, [dragSelection]);
+  }, []);
 
   const handleDayDoubleClick = useCallback((date: Date) => {
+    if (clickTimeout.current) {
+      clearTimeout(clickTimeout.current);
+    }
     setCurrentDate(date);
     openEventModal();
   }, [setCurrentDate, openEventModal]);

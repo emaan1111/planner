@@ -7,9 +7,10 @@ import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hoo
 import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { useConstraints } from '@/hooks/useConstraintsQuery';
 import { useTasks, useCreateTask } from '@/hooks/useTasksQuery';
+import { useProjects, useCreateProject } from '@/hooks/useProjectsQuery';
 import { Sparkles, Send, X, Loader2, Lightbulb, Calendar, AlertCircle, Wand2, Play, Check } from 'lucide-react';
 import clsx from 'clsx';
-import { EventColor, PlanEvent } from '@/types';
+import { EventColor, PlanEvent, Project } from '@/types';
 
 const quickPrompts = [
   { icon: Calendar, label: 'Plan my marketing for next month', prompt: 'Help me create a marketing plan for next month with email campaigns, social media posts, and content releases.' },
@@ -40,6 +41,7 @@ export function AIAssistant() {
   const { data: tasks = [] } = useTasks();
   const { data: planTypes = [] } = usePlanTypes();
   const { data: constraints = [] } = useConstraints();
+  const { data: projects = [] } = useProjects();
   
   const createEventMutation = useCreateEvent();
   const updateEventMutation = useUpdateEvent();
@@ -47,6 +49,7 @@ export function AIAssistant() {
   const createTaskMutation = useCreateTask();
   const createPlanTypeMutation = useCreatePlanType();
   const deletePlanTypeMutation = useDeletePlanType();
+  const createProjectMutation = useCreateProject();
   
   const addEvent = useCallback((event: Omit<PlanEvent, 'id' | 'createdAt' | 'updatedAt'>) => {
     createEventMutation.mutate(event);
@@ -87,6 +90,10 @@ export function AIAssistant() {
   const deletePlanType = useCallback((id: string) => {
     deletePlanTypeMutation.mutate(id);
   }, [deletePlanTypeMutation]);
+  
+  const addProject = useCallback((project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
+    createProjectMutation.mutate(project);
+  }, [createProjectMutation]);
 
   const [input, setInput] = useState('');
   const [pendingActions, setPendingActions] = useState<AIAction[]>([]);
@@ -149,6 +156,14 @@ export function AIAssistant() {
           break;
         case 'delete_plan_type':
           deletePlanType(action.payload.id as string);
+          break;
+        case 'add_project':
+          addProject({
+            name: action.payload.name as string,
+            description: action.payload.description as string || '',
+            color: (action.payload.color as EventColor) || 'blue',
+            isActive: true,
+          });
           break;
       }
       setExecutedActions(prev => new Set([...prev, index]));
@@ -216,6 +231,13 @@ export function AIAssistant() {
               name: t.name,
               label: t.label,
               color: t.color,
+            })),
+            projects: projects.map(p => ({
+              id: p.id,
+              name: p.name,
+              description: p.description,
+              color: p.color,
+              isActive: p.isActive,
             })),
             violations: violations.map(v => ({
               message: v.message,
