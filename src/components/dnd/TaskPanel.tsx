@@ -30,6 +30,8 @@ function DraggableTask({ task }: DraggableTaskProps) {
         return <Check className="w-3.5 h-3.5 text-green-500" />;
       case 'in-progress':
         return <Circle className="w-3.5 h-3.5 text-blue-500 fill-blue-500" />;
+      case 'scheduled':
+        return <Circle className="w-3.5 h-3.5 text-purple-500 fill-purple-500" />;
       default:
         return <Circle className="w-3.5 h-3.5 text-gray-400" />;
     }
@@ -46,7 +48,7 @@ function DraggableTask({ task }: DraggableTaskProps) {
     }
   };
 
-  if (task.status === 'done') return null;
+  if (task.status === 'done' || task.status === 'scheduled') return null;
 
   return (
     <motion.div
@@ -77,7 +79,7 @@ export function TaskPanel() {
   const { isTaskPanelOpen, toggleTaskPanel } = useUIStore();
   const { data: tasks = [] } = useTasks();
 
-  const incompleteTasks = tasks.filter(t => t.status !== 'done');
+  const draggableTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'scheduled');
 
   return (
     <AnimatePresence>
@@ -94,9 +96,9 @@ export function TaskPanel() {
             <div className="flex items-center gap-2 text-white">
               <CheckSquare className="w-5 h-5" />
               <span className="font-semibold">Tasks</span>
-              {incompleteTasks.length > 0 && (
+              {draggableTasks.length > 0 && (
                 <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
-                  {incompleteTasks.length}
+                  {draggableTasks.length}
                 </span>
               )}
             </div>
@@ -117,13 +119,13 @@ export function TaskPanel() {
 
           {/* Task list */}
           <div className="p-3 max-h-[400px] overflow-y-auto space-y-2">
-            {incompleteTasks.length === 0 ? (
+            {draggableTasks.length === 0 ? (
               <div className="text-center py-6 text-gray-400">
                 <CheckSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No incomplete tasks</p>
+                <p className="text-sm">No tasks to schedule</p>
               </div>
             ) : (
-              incompleteTasks.map(task => (
+              draggableTasks.map(task => (
                 <DraggableTask key={task.id} task={task} />
               ))
             )}

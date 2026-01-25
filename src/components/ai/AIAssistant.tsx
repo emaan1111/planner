@@ -63,7 +63,7 @@ export function AIAssistant() {
   const addTask = useCallback((task: {
     title: string;
     description?: string;
-    status?: 'todo' | 'in-progress' | 'done';
+    status?: 'todo' | 'in-progress' | 'scheduled' | 'done';
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;
     linkedPlanType?: string;
@@ -128,7 +128,7 @@ export function AIAssistant() {
           addTask({
             title: (action.payload.title as string) || 'Untitled Task',
             description: action.payload.description as string,
-            status: action.payload.status as 'todo' | 'in-progress' | 'done',
+            status: action.payload.status as 'todo' | 'in-progress' | 'scheduled' | 'done',
             priority: action.payload.priority as 'low' | 'medium' | 'high',
             dueDate,
             linkedPlanType: action.payload.linkedPlanType as string,

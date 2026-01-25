@@ -58,10 +58,10 @@ export function DndProvider({ children }: DndProviderProps) {
           endDate: dropDate,
         });
 
-        // Mark task as done
+        // Mark task as scheduled
         updateTaskMutation.mutate({
           id: taskId,
-          updates: { status: 'done' }
+          updates: { status: 'scheduled' }
         });
       }
     }

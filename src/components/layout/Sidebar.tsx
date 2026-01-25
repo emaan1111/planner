@@ -144,6 +144,8 @@ export function Sidebar() {
         return <Check className="w-4 h-4 text-green-500" />;
       case 'in-progress':
         return <Circle className="w-4 h-4 text-blue-500 fill-blue-500" />;
+      case 'scheduled':
+        return <Circle className="w-4 h-4 text-purple-500 fill-purple-500" />;
       default:
         return <Circle className="w-4 h-4 text-gray-400" />;
     }
@@ -572,7 +574,8 @@ export function Sidebar() {
                               onClick={() => {
                                 const nextStatus: Record<Task['status'], Task['status']> = {
                                   'todo': 'in-progress',
-                                  'in-progress': 'done',
+                                  'in-progress': 'scheduled',
+                                  'scheduled': 'done',
                                   'done': 'todo',
                                 };
                                 updateTask(task.id, { status: nextStatus[task.status] });
@@ -586,6 +589,8 @@ export function Sidebar() {
                                 'text-sm font-medium truncate',
                                 task.status === 'done' 
                                   ? 'text-gray-400 dark:text-gray-500 line-through' 
+                                  : task.status === 'scheduled'
+                                  ? 'text-purple-600 dark:text-purple-400'
                                   : 'text-gray-800 dark:text-gray-200'
                               )}>
                                 {task.title}

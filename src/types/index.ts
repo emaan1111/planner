@@ -47,7 +47,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  status: 'todo' | 'in-progress' | 'done';
+  status: 'todo' | 'in-progress' | 'scheduled' | 'done';
   priority: 'low' | 'medium' | 'high';
   dueDate?: Date;
   linkedPlanType?: PlanType;
