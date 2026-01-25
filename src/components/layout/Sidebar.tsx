@@ -30,11 +30,17 @@ export function Sidebar() {
   const { data: decisions = [] } = useDecisions();
   
   // Sync plan types to filter when they change
+  // Include both plan types from DB and plan types used by events
   useEffect(() => {
-    if (planTypes.length > 0) {
-      syncPlanTypes(planTypes.map(pt => pt.name));
+    const planTypeNames = planTypes.map(pt => pt.name);
+    const eventPlanTypes = events
+      .map(e => e.planType)
+      .filter((pt): pt is string => !!pt && !planTypeNames.includes(pt));
+    const allPlanTypes = [...planTypeNames, ...eventPlanTypes];
+    if (allPlanTypes.length > 0) {
+      syncPlanTypes(allPlanTypes);
     }
-  }, [planTypes, syncPlanTypes]);
+  }, [planTypes, events, syncPlanTypes]);
   
   const createPlanTypeMutation = useCreatePlanType();
   const deletePlanTypeMutation = useDeletePlanType();
