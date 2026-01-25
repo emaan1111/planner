@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { format, parseISO, isValid, startOfDay, endOfDay, isSameDay, isWithinInterval } from 'date-fns';
-import { ArrowLeft, Plus, Calendar, Clock, Tag, CheckCircle2, Circle, GripVertical } from 'lucide-react';
+import { format, parseISO, isValid, startOfDay, endOfDay, isSameDay, isWithinInterval, addDays, subDays } from 'date-fns';
+import { ArrowLeft, Plus, Calendar, Clock, Tag, CheckCircle2, Circle, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useEvents, useUpdateEvent } from '@/hooks/useEventsQuery';
 import { useTasks } from '@/hooks/useTasksQuery';
@@ -262,10 +262,26 @@ export default function DayViewPage() {
                 <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
               </Link>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Day view</p>
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {format(parsedDate, 'EEEE, MMMM d, yyyy')}
-                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Day view</p>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={`/day/${format(subDays(parsedDate, 1), 'yyyy-MM-dd')}`}
+                    className="p-1 -ml-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    title="Previous day"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-gray-400 hover:text-gray-900 dark:hover:text-white" />
+                  </Link>
+                  <h1 className="text-xl font-semibold text-gray-900 dark:text-white min-w-[240px] text-center">
+                    {format(parsedDate, 'EEEE, MMMM d, yyyy')}
+                  </h1>
+                  <Link
+                    href={`/day/${format(addDays(parsedDate, 1), 'yyyy-MM-dd')}`}
+                    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    title="Next day"
+                  >
+                    <ChevronRight className="w-5 h-5 text-gray-400 hover:text-gray-900 dark:hover:text-white" />
+                  </Link>
+                </div>
               </div>
             </div>
             <button

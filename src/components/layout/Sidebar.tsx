@@ -500,9 +500,9 @@ export function Sidebar() {
               >
                 <CheckSquare className="w-4 h-4" />
                 Tasks
-                {tasks.filter(t => t.status !== 'done').length > 0 && (
+                {tasks.filter(t => t.status !== 'done' && t.status !== 'scheduled').length > 0 && (
                   <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full font-medium">
-                    {tasks.filter(t => t.status !== 'done').length}
+                    {tasks.filter(t => t.status !== 'done' && t.status !== 'scheduled').length}
                   </span>
                 )}
                 <motion.div animate={{ rotate: showTasks ? 180 : 0 }}>
@@ -543,7 +543,7 @@ export function Sidebar() {
                   className="space-y-2 overflow-hidden"
                 >
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                    {tasks.filter(t => t.status !== 'done').map((task) => (
+                    {tasks.filter(t => t.status !== 'done' && t.status !== 'scheduled').map((task) => (
                       <motion.div
                         key={task.id}
                         whileHover={{ x: 4 }}
