@@ -1,6 +1,9 @@
 [build]
 builder = "NIXPACKS"
 
+[build.nixpacksConfig]
+nodeVersion = "20"
+
 [deploy]
 startCommand = "npx prisma migrate deploy && npm start"
 restartPolicyType = "ON_FAILURE"
