@@ -7,7 +7,7 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/u
 import { useDecisions, useCreateDecision, useUpdateDecision, useDeleteDecision } from '@/hooks/useDecisionsQuery';
 import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { PlanType, colorClasses, EventColor, Task, KeyDecision } from '@/types';
-import { Plus, Filter, ChevronDown, Star, Trash2, Brain, Lightbulb, CheckSquare, Check, Circle, ExternalLink } from 'lucide-react';
+import { Plus, Filter, ChevronDown, Star, Trash2, Brain, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -179,6 +179,18 @@ export function Sidebar() {
               <Plus className="w-5 h-5" />
               Create Event
             </motion.button>
+
+            {/* View All Events Link */}
+            <Link
+              href="/events"
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <List className="w-4 h-4" />
+              View All Events
+              <span className="ml-auto text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                {events.length}
+              </span>
+            </Link>
 
             {/* Plan Type Filters */}
             <div className="mt-6">
