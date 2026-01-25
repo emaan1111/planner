@@ -17,7 +17,7 @@ const adapter = new PrismaPg(pool);
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter,
+    // adapter, // Disabled adapter to fix type error with Prisma 5
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
