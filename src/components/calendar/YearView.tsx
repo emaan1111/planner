@@ -8,6 +8,7 @@ import { PlanEvent, colorClasses } from '@/types';
 import { useMemo, useRef } from 'react';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
+import { expandRecurringEvents } from '@/utils/recurrence';
 
 interface YearMonthProps {
   monthDate: Date;
@@ -20,8 +21,15 @@ function YearMonth({ monthDate, onClick, onDayClick, onDayDoubleClick }: YearMon
   const { selectedPlanTypes } = useUIStore();
   const { data: events = [] } = useEvents();
   
+  const expandedEvents = useMemo(() => {
+    if (events.length === 0) return [];
+    const start = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 });
+    return expandRecurringEvents(events, start, end);
+  }, [events, monthDate]);
+  
   const getEventsForDate = (date: Date) => {
-    return events.filter(
+    return expandedEvents.filter(
       (event) =>
         (selectedPlanTypes.length === 0 || !event.planType || selectedPlanTypes.includes(event.planType)) &&
         isWithinInterval(date, { start: event.startDate, end: event.endDate })
@@ -29,7 +37,7 @@ function YearMonth({ monthDate, onClick, onDayClick, onDayDoubleClick }: YearMon
   };
   
   const getEventsForDateRange = (start: Date, end: Date) => {
-    return events.filter(
+    return expandedEvents.filter(
       (event) =>
         (selectedPlanTypes.length === 0 || !event.planType || selectedPlanTypes.includes(event.planType)) &&
         (isWithinInterval(event.startDate, { start, end }) ||
@@ -123,8 +131,12 @@ function YearMonth({ monthDate, onClick, onDayClick, onDayDoubleClick }: YearMon
           {monthEvents.slice(0, 5).map((event) => (
             <div
               key={event.id}
-              className={clsx('w-2 h-2 rounded-full', colorClasses[event.color].bg)}
-              title={event.title}
+              className={clsx(
+                'w-2 h-2 rounded-full',
+                colorClasses[event.color].bg,
+                (event.status === 'done' || event.status === 'no-action') && 'opacity-60 grayscale'
+              )}
+              title={`${event.title}${event.status && event.status !== 'scheduled' ? ` (${event.status})` : ''}`}
             />
           ))}
           {monthEvents.length > 5 && (

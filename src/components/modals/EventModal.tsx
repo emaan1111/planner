@@ -22,6 +22,13 @@ const colorCategories = {
 };
 const allColors: EventColor[] = Object.values(colorCategories).flat();
 const priorities = ['low', 'medium', 'high', 'urgent'] as const;
+const statuses = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'in-progress', label: 'In Progress' },
+  { value: 'done', label: 'Done' },
+  { value: 'reschedule', label: 'Reschedule' },
+  { value: 'no-action', label: 'No Action' },
+] as const;
 const recurrenceOptions = [
   { value: '', label: 'Does not repeat' },
   { value: 'daily', label: 'Daily' },
@@ -74,6 +81,7 @@ export function EventModal() {
     planType: PlanType | '';
     color: EventColor;
     priority: 'low' | 'medium' | 'high' | 'urgent';
+    status: 'scheduled' | 'in-progress' | 'done' | 'reschedule' | 'no-action';
     tags: string;
     notes: string;
     recurrence: '' | 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -88,6 +96,7 @@ export function EventModal() {
     planType: defaultPlanType,
     color: defaultColor,
     priority: 'medium',
+    status: 'scheduled',
     tags: '',
     notes: '',
     recurrence: '',
@@ -110,6 +119,7 @@ export function EventModal() {
         planType: selectedEvent.planType || '',
         color: selectedEvent.color,
         priority: selectedEvent.priority || 'medium',
+        status: selectedEvent.status || 'scheduled',
         tags: selectedEvent.tags?.join(', ') || '',
         notes: selectedEvent.notes || '',
         recurrence: selectedEvent.recurrence?.frequency || '',
@@ -133,6 +143,7 @@ export function EventModal() {
         planType: defaultPlanType,
         color: defaultColor,
         priority: 'medium',
+        status: 'scheduled',
         tags: '',
         notes: '',
         recurrence: '',
@@ -181,7 +192,7 @@ export function EventModal() {
       tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
       notes: formData.notes,
       isAllDay: true,
-      status: 'planned' as const,
+      status: formData.status,
       recurrence,
       projectId: formData.projectId || undefined,
     };
@@ -385,24 +396,43 @@ export function EventModal() {
                 </div>
               </div>
 
-              {/* Project */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  <FolderKanban className="w-4 h-4" />
-                  Project
-                </label>
-                <select
-                  value={formData.projectId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, projectId: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">No project</option>
-                  {projects.filter(p => p.isActive).map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
+              {/* Project & Status */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <FolderKanban className="w-4 h-4" />
+                    Project
+                  </label>
+                  <select
+                    value={formData.projectId}
+                    onChange={(e) => setFormData(prev => ({ ...prev, projectId: e.target.value }))}
+                    className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">No project</option>
+                    {projects.filter(p => p.isActive).map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Status
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
+                    className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {statuses.map((status) => (
+                      <option key={status.value} value={status.value}>
+                        {status.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Dates */}

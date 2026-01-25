@@ -11,6 +11,8 @@ import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
 import { DroppableCalendarCell } from '@/components/dnd';
 import { useRouter } from 'next/navigation';
+import { expandRecurringEvents } from '@/utils/recurrence';
+import { toast } from '@/components/ui/Toast';
 
 interface ResizeState {
   eventId: string;
@@ -98,13 +100,18 @@ export function MonthView() {
     return eachDayOfInterval({ start, end });
   }, [currentDate]);
 
+  const expandedEvents = useMemo(() => {
+    if (events.length === 0 || days.length === 0) return [];
+    return expandRecurringEvents(events, days[0], days[days.length - 1]);
+  }, [events, days]);
+
   // Get all filtered events
   const filteredEvents = useMemo(() => {
     // Show all events if no filters selected, or filter by selected types
     // Always show events with no plan type
-    if (selectedPlanTypes.length === 0) return events;
-    return events.filter(e => !e.planType || selectedPlanTypes.includes(e.planType));
-  }, [events, selectedPlanTypes]);
+    if (selectedPlanTypes.length === 0) return expandedEvents;
+    return expandedEvents.filter(e => !e.planType || selectedPlanTypes.includes(e.planType));
+  }, [expandedEvents, selectedPlanTypes]);
 
   // Calculate which events span multiple days and their positions
   const getEventSpan = useCallback((event: PlanEvent, weekStart: Date, weekEnd: Date) => {
@@ -207,8 +214,26 @@ export function MonthView() {
     }
     
     if (currentResizing) {
-      const event = events.find(e => e.id === currentResizing.eventId);
+      const event = expandedEvents.find(e => e.id === currentResizing.eventId);
       if (event) {
+        if (event.recurrence || event.id.includes('_')) {
+          // If it's a generated instance or the parent recurrence, warn restriction
+          // Actually, if it's the parent (id has no _), we COULD allow allowing editing the series.
+          // But since expandedEvents replaces the parent with instances in the view if logic dictates... 
+          // Wait, my expansion logic KEEPS the parent if it's in the view range?
+          // My expansion logic: "Result.push(...instances)". It does NOT include the original parent unless it falls in the range and we pushed it?
+          // Actually logic says: "First add all non-recurring... Then expand recurring...".
+          // So the PARENT (which has .recurrence) is NOT added to result in the first pass.
+          // So only instances exist in expandedEvents for recurring events.
+          // So they will ALL have '_' in ID.
+          
+          if (event.id.includes('_')) {
+             toast.error("Editing repeating recurring events is not yet supported.");
+             setResizing(null);
+             return;
+          }
+        }
+
         const eventStart = new Date(event.startDate);
         const eventEnd = new Date(event.endDate);
         
@@ -228,8 +253,14 @@ export function MonthView() {
     }
     
     if (currentDragging) {
-      const event = events.find(e => e.id === currentDragging.eventId);
+      const event = expandedEvents.find(e => e.id === currentDragging.eventId);
       if (event) {
+        if (event.id.includes('_')) {
+             toast.error("Moving repeating recurring events is not yet supported.");
+             setDragging(null);
+             return;
+        }
+
         const daysDiff = differenceInDays(currentDragging.currentDate, currentDragging.initialDate);
         const newStart = addDays(new Date(event.startDate), daysDiff);
         const newEnd = addDays(new Date(event.endDate), daysDiff);
@@ -240,7 +271,7 @@ export function MonthView() {
     
     isDragging.current = false;
     setHoveredDate(null);
-  }, [events, resizeEvent, moveEvent]);
+  }, [expandedEvents, resizeEvent, moveEvent]);
 
   // Add/remove global event listeners (always attached for immediate response)
   useEffect(() => {
@@ -303,7 +334,21 @@ export function MonthView() {
     e.stopPropagation();
     if (!resizing && !dragging) {
       setTooltip(null);
-      openEventModal(event);
+      
+      let targetEvent = event;
+      if (typeof event.id === 'string' && event.id.includes('_')) {
+        const originalId = event.id.split('_')[0];
+        const parent = events.find(ev => ev.id === originalId);
+        if (parent) {
+          targetEvent = parent;
+          toast.info("Editing recurrence series.");
+        } else {
+          toast.error("Original event not found.");
+          return;
+        }
+      }
+
+      openEventModal(targetEvent);
     }
   };
 
@@ -561,6 +606,8 @@ export function MonthView() {
                           colors.bg,
                           'hover:shadow-lg hover:scale-[1.02]',
                           isBeingModified && 'shadow-xl scale-[1.02] ring-2 ring-white/50',
+                          (event.status === 'done' || event.status === 'no-action') && 'opacity-60',
+                          event.status === 'no-action' && 'line-through decoration-white/50',
                           !startsBeforeWeek && 'rounded-l-md pl-2',
                           !endsAfterWeek && 'rounded-r-md pr-2',
                           startsBeforeWeek && 'rounded-l-none pl-1',

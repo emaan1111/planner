@@ -10,6 +10,8 @@ import clsx from 'clsx';
 import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
 import { useRouter } from 'next/navigation';
+import { expandRecurringEvents } from '@/utils/recurrence';
+import { toast } from '@/components/ui/Toast';
 
 // Layout constants
 const MAX_EVENTS_PER_WEEK = 2;
@@ -56,10 +58,12 @@ interface CompactMonthProps {
   onEventMouseLeave: () => void;
   onResizeStart: (event: PlanEvent, edge: 'start' | 'end', date: Date, e: React.MouseEvent) => void;
   cellRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
+  events: PlanEvent[];
 }
 
 function CompactMonth({ 
   monthDate, 
+  events,
   dragSelection, 
   eventDrag,
   resize,
@@ -76,7 +80,6 @@ function CompactMonth({
   cellRefs 
 }: CompactMonthProps) {
   const { selectedPlanTypes } = useUIStore();
-  const { data: events = [] } = useEvents();
   
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
@@ -446,6 +449,16 @@ export function SixMonthView() {
     return [0, 1, 2, 3, 4, 5].map(offset => addMonths(startOfMonth(today), offset));
   }, []);
 
+  // Calculate expanded events for 6-month view
+  const expandedEvents = useMemo(() => {
+    if (events.length === 0 || months.length === 0) return [];
+    
+    const rangeStart = startOfWeek(startOfMonth(months[0]), { weekStartsOn: 1 });
+    const rangeEnd = endOfWeek(endOfMonth(months[months.length - 1]), { weekStartsOn: 1 });
+    
+    return expandRecurringEvents(events, rangeStart, rangeEnd);
+  }, [events, months]);
+
   // Handle mouse move for drag selection and event operations
   const handleMouseMove = useCallback((e: MouseEvent) => {
     let foundDate: Date | null = null;
@@ -493,8 +506,15 @@ export function SixMonthView() {
     }
 
     if (currentEventDrag) {
-      const event = events.find(e => e.id === currentEventDrag.eventId);
+      const event = expandedEvents.find(e => e.id === currentEventDrag.eventId);
       if (event) {
+        if (event.id.includes('_')) {
+           toast.info("Moving recurring event instances is not yet supported.");
+           setEventDrag(null);
+           isDragging.current = false;
+           return;
+        }
+
         const daysDiff = differenceInDays(currentEventDrag.currentDate, currentEventDrag.initialDate);
         if (daysDiff !== 0) {
           const newStart = addDays(new Date(event.startDate), daysDiff);
@@ -506,8 +526,15 @@ export function SixMonthView() {
     }
 
     if (currentResize) {
-      const event = events.find(e => e.id === currentResize.eventId);
+      const event = expandedEvents.find(e => e.id === currentResize.eventId);
       if (event) {
+        if (event.id.includes('_')) {
+           toast.info("Resizing recurring event instances is not yet supported.");
+           setResize(null);
+           isDragging.current = false;
+           return;
+        }
+
         const eventStart = new Date(event.startDate);
         const eventEnd = new Date(event.endDate);
         
@@ -527,7 +554,7 @@ export function SixMonthView() {
     }
 
     isDragging.current = false;
-  }, [events, moveEvent, resizeEvent, openEventModal, setCurrentDate, router]);
+  }, [expandedEvents, moveEvent, resizeEvent, openEventModal, setCurrentDate, router]);
 
   // Add global event listeners (always attached for immediate response)
   useEffect(() => {
@@ -575,9 +602,22 @@ export function SixMonthView() {
     e.stopPropagation();
     if (!eventDrag && !resize) {
       setTooltip(null);
-      openEventModal(event);
+      
+      let targetEvent = event;
+      if (typeof event.id === 'string' && event.id.includes('_')) {
+        const originalId = event.id.split('_')[0];
+        const parent = events.find(ev => ev.id === originalId);
+        if (parent) {
+          targetEvent = parent;
+          toast.info("Editing recurrence series.");
+        } else {
+          toast.error("Original event not found.");
+          return;
+        }
+      }
+      openEventModal(targetEvent);
     }
-  }, [eventDrag, resize, openEventModal]);
+  }, [eventDrag, resize, openEventModal, events]);
 
   const handleEventMouseDown = useCallback((event: PlanEvent, date: Date, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -641,6 +681,7 @@ export function SixMonthView() {
           >
             <CompactMonth 
               monthDate={monthDate} 
+              events={expandedEvents}
               dragSelection={dragSelection}
               eventDrag={eventDrag}
               resize={resize}

@@ -42,6 +42,7 @@ export async function PUT(
         description: body.description,
         status: body.status,
         outcome: body.outcome,
+        notes: body.notes,
         linkedPlanType: body.linkedPlanType,
         linkedEventId: body.linkedEventId,
         decidedAt: body.decidedAt ? new Date(body.decidedAt) : null,

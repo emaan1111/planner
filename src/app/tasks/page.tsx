@@ -7,6 +7,7 @@ import { useProjects } from '@/hooks/useProjectsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { Task } from '@/types';
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { TaskModal } from '@/components/modals/TaskModal';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { DndContext, closestCenter, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
@@ -77,10 +78,11 @@ interface SortableTaskCardProps {
   onCycleStatus: () => void;
   onUpdateStatus: (status: Task['status']) => void;
   onDelete: () => void;
+  onEdit: () => void;
   isDragOverlay?: boolean;
 }
 
-function SortableTaskCard({ task, linkedEvent, onCycleStatus, onUpdateStatus, onDelete, isDragOverlay }: SortableTaskCardProps) {
+function SortableTaskCard({ task, linkedEvent, onCycleStatus, onUpdateStatus, onDelete, onEdit, isDragOverlay }: SortableTaskCardProps) {
   const {
     attributes,
     listeners,
@@ -102,86 +104,60 @@ function SortableTaskCard({ task, linkedEvent, onCycleStatus, onUpdateStatus, on
       ref={setNodeRef}
       style={style}
       className={clsx(
-        'rounded-lg p-3 border transition-all hover:shadow-sm',
+        'rounded-md p-2 border transition-all hover:shadow-sm',
         getStatusColor(task.status),
         task.status === 'done' && 'opacity-60',
         isDragging && !isDragOverlay && 'opacity-30',
         isDragOverlay && 'shadow-2xl scale-105'
       )}
     >
-      <div className="flex items-start gap-3">
-        <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing touch-none mt-0.5 flex-shrink-0">
+      <div className="flex items-center gap-2">
+        <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing touch-none flex-shrink-0">
           <GripVertical className="w-4 h-4 text-gray-400" />
         </div>
         <button
           onClick={onCycleStatus}
-          className="mt-0.5 flex-shrink-0 hover:scale-110 transition-transform"
-          title={`Click to change status (current: ${task.status})`}
+          className="flex-shrink-0 hover:scale-110 transition-transform"
         >
           {getStatusIcon(task.status)}
         </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className={clsx(
-                'text-base font-semibold',
-                task.status === 'done'
-                  ? 'text-gray-500 dark:text-gray-400 line-through'
-                  : 'text-gray-900 dark:text-white'
-              )}>
-                {task.title}
-              </h3>
-              {task.description && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {task.description}
-                </p>
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onEdit}>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className={clsx(
+              'text-sm font-medium truncate',
+              task.status === 'done'
+                ? 'text-gray-500 dark:text-gray-400 line-through'
+                : 'text-gray-900 dark:text-white'
+            )}>
+              {task.title}
+            </h3>
+            
+            <div className="flex items-center gap-2">
+              {!isDragOverlay && (
+                <>
+                  <span className={clsx('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getPriorityColor(task.priority))}>
+                    {task.priority}
+                  </span>
+                  
+                  {task.dueDate && (
+                    <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      <Clock className="w-3 h-3" />
+                      <span className="hidden sm:inline">{new Date(task.dueDate).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </>
               )}
             </div>
-            {!isDragOverlay && (
-              <div className="flex items-center gap-2">
-                <span className={clsx('text-xs px-2 py-1 rounded-full font-medium', getPriorityColor(task.priority))}>
-                  {task.priority}
-                </span>
-                <select
-                  value={task.status}
-                  onChange={(e) => onUpdateStatus(e.target.value as Task['status'])}
-                  className="text-sm px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
-                >
-                  <option value="todo">To Do</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="done">Done</option>
-                </select>
-                <button
-                  onClick={onDelete}
-                  className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Links & metadata */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
-            {task.linkedPlanType && (
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                <Tag className="w-4 h-4" />
-                <span>{task.linkedPlanType}</span>
-              </div>
-            )}
-            {linkedEvent && (
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                <Calendar className="w-4 h-4" />
-                <span>{linkedEvent.title}</span>
-              </div>
-            )}
-            {task.dueDate && (
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                <Clock className="w-4 h-4" />
-                <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -213,6 +189,7 @@ export default function TasksPage() {
   };
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('medium');
@@ -664,6 +641,7 @@ export default function TasksPage() {
                         onCycleStatus={() => cycleTaskStatus(task)}
                         onUpdateStatus={(status) => updateTask(task.id, { status })}
                         onDelete={() => deleteTask(task.id)}
+                        onEdit={() => setEditingTask(task)}
                       />
                     );
                   })}
@@ -677,6 +655,7 @@ export default function TasksPage() {
                     onCycleStatus={() => {}}
                     onUpdateStatus={() => {}}
                     onDelete={() => {}}
+                    onEdit={() => {}}
                     isDragOverlay
                   />
                 ) : null}
@@ -695,86 +674,62 @@ export default function TasksPage() {
                     exit={{ opacity: 0, x: -100 }}
                     transition={{ delay: index * 0.03 }}
                     className={clsx(
-                      'rounded-lg p-3 border transition-all hover:shadow-sm',
+                      'rounded-md p-2 border transition-all hover:shadow-sm',
                       getStatusColor(task.status),
                       task.status === 'done' && 'opacity-60'
                     )}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={selectedTaskIds.has(task.id)}
                         onChange={() => toggleTaskSelection(task.id)}
-                        className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="flex-shrink-0 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         aria-label={`Select task ${task.title}`}
                       />
                       <button
                         onClick={() => cycleTaskStatus(task)}
-                        className="mt-0.5 flex-shrink-0 hover:scale-110 transition-transform"
+                        className="flex-shrink-0 hover:scale-110 transition-transform"
                         title={`Click to change status (current: ${task.status})`}
                       >
                         {getStatusIcon(task.status)}
                       </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className={clsx(
-                              'text-base font-semibold',
-                              task.status === 'done'
-                                ? 'text-gray-500 dark:text-gray-400 line-through'
-                                : 'text-gray-900 dark:text-white'
-                            )}>
-                              {task.title}
-                            </h3>
-                            {task.description && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                {task.description}
-                              </p>
-                            )}
-                          </div>
+                      
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingTask(task)}>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className={clsx(
+                            'text-sm font-medium truncate',
+                            task.status === 'done'
+                              ? 'text-gray-500 dark:text-gray-400 line-through'
+                              : 'text-gray-900 dark:text-white'
+                          )}>
+                            {task.title}
+                          </h3>
+                          
                           <div className="flex items-center gap-2">
-                            <span className={clsx('text-xs px-2 py-1 rounded-full font-medium', getPriorityColor(task.priority))}>
+                            <span className={clsx('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getPriorityColor(task.priority))}>
                               {task.priority}
                             </span>
-                            <select
-                              value={task.status}
-                              onChange={(e) => updateTask(task.id, { status: e.target.value as Task['status'] })}
-                              className="text-sm px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
-                            >
-                              <option value="todo">To Do</option>
-                              <option value="in-progress">In Progress</option>
-                              <option value="scheduled">Scheduled</option>
-                              <option value="done">Done</option>
-                            </select>
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
 
-                        {/* Links & metadata */}
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
-                          {task.linkedPlanType && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                              <Tag className="w-4 h-4" />
-                              <span>{task.linkedPlanType}</span>
+                            {task.dueDate && (
+                              <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                <Clock className="w-3 h-3" />
+                                <span className="hidden sm:inline">{new Date(task.dueDate).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTask(task.id);
+                                }}
+                                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
-                          )}
-                          {linkedEvent && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                              <Calendar className="w-4 h-4" />
-                              <span>{linkedEvent.title}</span>
-                            </div>
-                          )}
-                          {task.dueDate && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                              <Clock className="w-4 h-4" />
-                              <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>
-                            </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -932,6 +887,16 @@ export default function TasksPage() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editingTask && (
+          <TaskModal
+            isOpen={!!editingTask}
+            selectedTask={editingTask}
+            onClose={() => setEditingTask(null)}
+          />
         )}
       </AnimatePresence>
     </div>

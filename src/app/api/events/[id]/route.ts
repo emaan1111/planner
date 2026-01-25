@@ -50,6 +50,8 @@ export async function PUT(
     if (body.priority !== undefined) updateData.priority = body.priority;
     if (body.status !== undefined) updateData.status = body.status;
     if (body.notes !== undefined) updateData.notes = body.notes;
+    if (body.recurrence !== undefined) updateData.recurrence = body.recurrence;
+    if (body.projectId !== undefined) updateData.projectId = body.projectId;
 
     const event = await prisma.event.update({
       where: { id },

@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         description: body.description,
         status: body.status ?? 'pending',
         outcome: body.outcome,
+        notes: body.notes,
         linkedPlanType: body.linkedPlanType,
         linkedEventId: body.linkedEventId,
         decidedAt: body.decidedAt ? new Date(body.decidedAt) : null,

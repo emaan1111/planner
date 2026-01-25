@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
         priority: body.priority,
         status: body.status ?? 'planned',
         notes: body.notes,
+        recurrence: body.recurrence,
+        projectId: body.projectId,
       },
     });
 

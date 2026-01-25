@@ -4,10 +4,12 @@ import { motion } from 'framer-motion';
 import { format, addMonths } from 'date-fns';
 import { useUIStore } from '@/store/uiStore';
 import { ViewMode } from '@/types';
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, Grid3X3, Settings2, Sparkles, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, Grid3X3, Settings2, Sparkles, Menu, LayoutList } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 
-const viewModeConfig: { mode: ViewMode; label: string; icon: typeof Calendar }[] = [
+const viewModeConfig: { mode: ViewMode | 'day'; label: string; icon: typeof Calendar }[] = [
+  { mode: 'day', label: 'Day', icon: LayoutList },
   { mode: 'month', label: 'Month', icon: Calendar },
   { mode: 'multi-month', label: '3 Months', icon: CalendarRange },
   { mode: 'six-month', label: '6 Months', icon: Grid3X3 },
@@ -28,6 +30,15 @@ export function CalendarHeader() {
     isAIAssistantOpen,
     violations,
   } = useUIStore();
+  const router = useRouter();
+
+  const handleViewChange = (mode: ViewMode | 'day') => {
+    if (mode === 'day') {
+      router.push(`/day/${format(currentDate, 'yyyy-MM-dd')}`);
+    } else {
+      setViewMode(mode as ViewMode);
+    }
+  };
 
   const getTitle = () => {
     switch (viewMode) {
@@ -109,10 +120,10 @@ export function CalendarHeader() {
                 key={mode}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setViewMode(mode)}
+                onClick={() => handleViewChange(mode)}
                 className={clsx(
                   'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  viewMode === mode
+                  viewMode === mode && mode !== 'day'
                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 )}

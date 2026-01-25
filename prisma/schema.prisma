@@ -23,9 +23,11 @@ model Event {
   isAllDay    Boolean  @default(false)
   tags        String[] @default([])
   priority    String?  // low, medium, high, urgent
-  status      String   @default("planned") // planned, in-progress, completed, cancelled
+  status      String   @default("scheduled") // scheduled, in-progress, done, reschedule, no-action
   notes       String?
   projectId   String?
+  recurrence  Json?    // RecurrencePattern structure
+  parentEventId String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -33,6 +35,8 @@ model Event {
   tasks       Task[]
   decisions   Decision[]
   project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  parentEvent Event?    @relation("Recurrence", fields: [parentEventId], references: [id], onDelete: SetNull)
+  recurringInstances Event[] @relation("Recurrence")
 }
 
 // Tasks linked to plan types or events
@@ -62,6 +66,7 @@ model Decision {
   description    String?
   status         String    @default("pending") // pending, decided, deferred
   outcome        String?
+  notes          String?
   linkedPlanType String?
   linkedEventId  String?
   projectId      String?

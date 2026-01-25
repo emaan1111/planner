@@ -190,7 +190,7 @@ export interface PlanEvent {
   isAllDay?: boolean;
   tags?: string[];
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  status?: 'planned' | 'in-progress' | 'completed' | 'cancelled';
+  status?: 'scheduled' | 'in-progress' | 'done' | 'reschedule' | 'no-action';
   constraints?: Constraint[];
   notes?: string;
   projectId?: string;
