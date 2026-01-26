@@ -303,13 +303,21 @@ export default function DayViewPage() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => openEventModal(undefined, { startDate: dayStart, endDate: dayStart })}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-shadow"
-            >
-              <Plus className="w-4 h-4" />
-              Add event
-            </button>
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/day/${format(new Date(), 'yyyy-MM-dd')}`}
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Today
+              </Link>
+              <button
+                onClick={() => openEventModal(undefined, { startDate: dayStart, endDate: dayStart })}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-shadow"
+              >
+                <Plus className="w-4 h-4" />
+                Add event
+              </button>
+            </div>
           </div>
         </div>
       </header>
