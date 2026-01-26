@@ -81,6 +81,7 @@ export function MonthView() {
   const [daySummary, setDaySummary] = useState<{ date: Date; events: PlanEvent[]; position: { x: number; y: number } } | null>(null);
   const [dragSelection, setDragSelection] = useState<DragSelectionState | null>(null);
   const tooltipTimeout = useRef<NodeJS.Timeout | null>(null);
+  const summaryTimeout = useRef<NodeJS.Timeout | null>(null);
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -548,6 +549,10 @@ export function MonthView() {
                       });
                       
                       if (eventsForDay.length > 0) {
+                         if (summaryTimeout.current) {
+                           clearTimeout(summaryTimeout.current);
+                           summaryTimeout.current = null;
+                         }
                          setDaySummary({
                              date,
                              events: eventsForDay.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
@@ -555,11 +560,16 @@ export function MonthView() {
                          });
                       }
                     }}
-                    onMouseLeave={() => setDaySummary(null)}
+                    onMouseLeave={() => {
+                        if (summaryTimeout.current) clearTimeout(summaryTimeout.current);
+                        summaryTimeout.current = setTimeout(() => {
+                           setDaySummary(null);
+                        }, 300);
+                    }}
                     onDoubleClick={() => handleDayDoubleClick(date)}
                     onContextMenu={(e) => handleDayContextMenu(e, date)}
                     className={clsx(
-                      'min-h-[120px] p-2 border-b border-r border-gray-100 dark:border-gray-800 transition-colors cursor-pointer select-none relative',
+                      'min-h-[140px] p-2 border-b border-r border-gray-100 dark:border-gray-800 transition-colors cursor-pointer select-none relative group/cell',
                       !isCurrentMonth && 'bg-gray-50 dark:bg-gray-900/50',
                       dayIsWeekend && isCurrentMonth && 'bg-gray-50/50 dark:bg-gray-900/30',
                       'hover:bg-gray-100 dark:hover:bg-gray-800/50',
@@ -585,10 +595,10 @@ export function MonthView() {
                     </div>
                     
                     {/* Spacer for multi-day events */}
-                    <div className="h-[calc(100%-32px)]">
+                    <div className="h-[calc(100%-32px)] relative">
                       {hiddenCount > 0 && (
-                        <div className="absolute bottom-2 left-2 right-2">
-                           <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 rounded">
+                        <div className="absolute bottom-1 left-1 right-1 z-10">
+                           <span className="block w-full text-center py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded shadow-sm border border-gray-100 dark:border-gray-700">
                              +{hiddenCount} more
                            </span>
                         </div>
@@ -754,6 +764,15 @@ export function MonthView() {
         date={daySummary?.date || null}
         events={daySummary?.events || []}
         position={daySummary?.position || null}
+        onMouseEnter={() => {
+            if (summaryTimeout.current) {
+                clearTimeout(summaryTimeout.current);
+                summaryTimeout.current = null;
+            }
+        }}
+        onMouseLeave={() => {
+            setDaySummary(null);
+        }}
       />
     </motion.div>
   );

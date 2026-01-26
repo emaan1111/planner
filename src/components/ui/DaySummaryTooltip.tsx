@@ -11,9 +11,11 @@ interface DaySummaryTooltipProps {
   events: PlanEvent[];
   position: { x: number; y: number } | null;
   onClose?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
-export function DaySummaryTooltip({ date, events, position }: DaySummaryTooltipProps) {
+export function DaySummaryTooltip({ date, events, position, onMouseEnter, onMouseLeave }: DaySummaryTooltipProps) {
   if (!date || !position || events.length === 0) return null;
 
   return (
@@ -23,15 +25,17 @@ export function DaySummaryTooltip({ date, events, position }: DaySummaryTooltipP
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ duration: 0.2 }}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
         style={{
           position: 'fixed',
           left: Math.min(position.x, window.innerWidth - 250), // Prevent overflow right
           top: Math.min(position.y, window.innerHeight - 300),  // Prevent overflow bottom
           zIndex: 60,
         }}
-        className="w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+        className="w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col"
       >
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700 shrink-0">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
             {format(date, 'MMM d, yyyy')}
           </h3>
@@ -40,7 +44,7 @@ export function DaySummaryTooltip({ date, events, position }: DaySummaryTooltipP
           </p>
         </div>
         
-        <div className="py-2 max-h-[300px] overflow-y-auto">
+        <div className="py-2 overflow-y-auto max-h-[400px]">
           {events.map((event) => {
             const colors = colorClasses[event.color];
             return (
