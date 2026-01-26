@@ -144,8 +144,8 @@ export function EventContextMenu({
         onClose();
       },
       danger: true,
-    },
-  ];
+    }
+  );
 
   // Adjust position to keep menu within viewport
   const adjustedPosition = {
