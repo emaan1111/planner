@@ -347,8 +347,27 @@ function MiniMonth({
                       occupied.add(`${rowIndex}-${startCol + i}`);
                     }
                   });
+                  
+                  // Calculate hidden events per day
+                  const hiddenEventsPerDay = new Map<string, number>();
+                  sortedEvents.forEach(event => {
+                    const row = eventRows.get(event.id) ?? 0;
+                    if (row >= MAX_EVENTS_PER_WEEK) {
+                      const eventStart = startOfDay(new Date(event.startDate));
+                      const eventEnd = startOfDay(new Date(event.endDate));
+                      
+                      // Check overlap with each day in the week
+                      week.forEach(day => {
+                        if (day >= eventStart && day <= eventEnd) {
+                          const key = day.toISOString();
+                          hiddenEventsPerDay.set(key, (hiddenEventsPerDay.get(key) || 0) + 1);
+                        }
+                      });
+                    }
+                  });
 
-                  return sortedEvents.filter(e => (eventRows.get(e.id) ?? 999) < MAX_EVENTS_PER_WEEK).map((event) => {
+                  // Render events
+                  const visibleEvents = sortedEvents.filter(e => (eventRows.get(e.id) ?? 999) < MAX_EVENTS_PER_WEEK).map((event) => {
                     const preview = getPreviewSpan(event);
                     const effectiveStart = preview ? preview.start : new Date(event.startDate);
                     const effectiveEnd = preview ? preview.end : new Date(event.endDate);
@@ -424,17 +443,32 @@ function MiniMonth({
                       </motion.div>
                    );
                   });
+
+                  // Render overflow indicators
+                  const indicators: React.ReactNode[] = [];
+                  week.forEach((day, dayIdx) => {
+                    const key = day.toISOString();
+                    const count = hiddenEventsPerDay.get(key) || 0;
+                    if (count > 0) {
+                      indicators.push(
+                        <div 
+                          key={`more-${key}`}
+                          className="absolute text-[9px] text-gray-500 dark:text-gray-400 font-medium px-1 pointer-events-auto cursor-pointer hover:text-blue-500 hover:underline z-10"
+                          style={{
+                            left: `${(dayIdx / 7) * 100}%`,
+                            width: `${100/7}%`,
+                            top: `${MAX_EVENTS_PER_WEEK * 20}px`
+                          }}
+                        >
+                           +{count} more
+                        </div>
+                      );
+                    }
+                  });
+                  
+                  return [...visibleEvents, ...indicators];
                 })()}
               </AnimatePresence>
-              {/* Show +N more indicator if there are hidden events */}
-              {weekEvents.length > MAX_EVENTS_PER_WEEK && (
-                <div 
-                  className="text-[9px] text-gray-500 dark:text-gray-400 font-medium pl-1 mt-0.5 pointer-events-auto cursor-pointer hover:text-blue-500"
-                  style={{ marginTop: `${MAX_EVENTS_PER_WEEK * (EVENT_HEIGHT + EVENT_GAP)}px` }}
-                >
-                  +{weekEvents.length - MAX_EVENTS_PER_WEEK} more
-                </div>
-              )}
             </div>
           </div>
         );
