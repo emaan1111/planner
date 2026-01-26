@@ -165,7 +165,26 @@ export default function DayViewPage() {
       .filter((event) =>
         isWithinInterval(dayStart, { start: startOfDay(event.startDate), end: endOfDay(event.endDate) })
       )
-      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+      .sort((a, b) => {
+        // Sort by status priority first
+        const statusWeight: Record<string, number> = {
+          'in-progress': 0,
+          'scheduled': 1,
+          'reschedule': 2,
+          'no-action': 3,
+          'done': 4
+        };
+        
+        const weightA = statusWeight[a.status || 'scheduled'] ?? 1;
+        const weightB = statusWeight[b.status || 'scheduled'] ?? 1;
+
+        if (weightA !== weightB) {
+          return weightA - weightB;
+        }
+
+        // Then by start time
+        return a.startDate.getTime() - b.startDate.getTime();
+      });
   }, [events, isValidDate, parsedDate, dayStart]);
 
   const dayTasks = useMemo(() => {
