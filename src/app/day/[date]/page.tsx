@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { format, parseISO, isValid, startOfDay, endOfDay, isSameDay, isWithinInterval, addDays, subDays } from 'date-fns';
 import { ArrowLeft, Plus, Calendar, Clock, Tag, CheckCircle2, Circle, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
-import { useEvents, useUpdateEvent } from '@/hooks/useEventsQuery';
+import { useEvents, useUpdateEvent, useCreateEvent, useDeleteEvent } from '@/hooks/useEventsQuery';
 import { useTasks } from '@/hooks/useTasksQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { useUIStore } from '@/store/uiStore';
@@ -18,6 +18,7 @@ import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { setHours, setMinutes, getHours, getMinutes, differenceInMinutes, addMinutes } from 'date-fns';
+import { EventContextMenu } from '@/components/calendar/EventContextMenu';
 
 const getTaskStatusIcon = (status: Task['status']) => {
   switch (status) {
@@ -60,9 +61,10 @@ interface SortableEventCardProps {
   event: PlanEvent;
   planType: any;
   onClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }
 
-function SortableEventCard({ event, planType, onClick }: SortableEventCardProps) {
+function SortableEventCard({ event, planType, onClick, onContextMenu }: SortableEventCardProps) {
   const {
     attributes,
     listeners,
@@ -85,6 +87,7 @@ function SortableEventCard({ event, planType, onClick }: SortableEventCardProps)
     <div
       ref={setNodeRef}
       style={style}
+      onContextMenu={onContextMenu}
       className={clsx(
         'bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-3 hover:shadow-sm transition-shadow cursor-pointer relative group',
         isDragging && 'opacity-30 z-50'
@@ -137,10 +140,13 @@ export default function DayViewPage() {
 
   const { data: events = [] } = useEvents();
   const updateEventMutation = useUpdateEvent();
+  const deleteEventMutation = useDeleteEvent();
+  const createEventMutation = useCreateEvent();
   const { data: tasks = [] } = useTasks();
   const { data: planTypes = [] } = usePlanTypes();
-  const { openEventModal, setCurrentDate } = useUIStore();
+  const { openEventModal, setCurrentDate, cutEvent, copyEvent, clipboardEvent, clearClipboard } = useUIStore();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ event: PlanEvent; position: { x: number; y: number } } | null>(null);
 
   const dayStart = useMemo(() => startOfDay(parsedDate), [parsedDate]);
 
@@ -246,6 +252,46 @@ export default function DayViewPage() {
         });
       }
     }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, event: PlanEvent) => {
+    e.preventDefault();
+    setContextMenu({ event, position: { x: e.clientX, y: e.clientY } });
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    deleteEventMutation.mutate(id);
+  };
+
+  const handleDuplicateEvent = (event: PlanEvent) => {
+    const {
+      id: _id,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      ...eventData
+    } = event;
+    createEventMutation.mutate(eventData);
+  };
+
+  const handleMoveToNextDay = (event: PlanEvent) => {
+    const newStart = addDays(new Date(event.startDate), 1);
+    const newEnd = addDays(new Date(event.endDate), 1);
+    updateEventMutation.mutate({
+      id: event.id,
+      updates: {
+        startDate: newStart,
+        endDate: newEnd,
+      },
+    });
+  };
+
+  const handleMarkDone = (event: PlanEvent) => {
+    updateEventMutation.mutate({
+      id: event.id,
+      updates: {
+        status: 'done',
+      },
+    });
   };
 
   if (!isValidDate) {
@@ -355,6 +401,7 @@ export default function DayViewPage() {
                         event={event}
                         planType={planType}
                         onClick={() => openEventModal(event)}
+                        onContextMenu={(e) => handleContextMenu(e, event)}
                       />
                     );
                   })}
@@ -417,6 +464,18 @@ export default function DayViewPage() {
           )}
         </aside>
       </main>
+
+      <EventContextMenu
+        event={contextMenu?.event || null}
+        position={contextMenu?.position || null}
+        onClose={() => setContextMenu(null)}
+        onDelete={handleDeleteEvent}
+        onCut={cutEvent}
+        onCopy={copyEvent}
+        onDuplicate={handleDuplicateEvent}
+        onMoveToNextDay={handleMoveToNextDay}
+        onMarkDone={handleMarkDone}
+      />
 
       <EventModal />
       

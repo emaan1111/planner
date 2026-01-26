@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 import { PlanEvent } from '@/types';
 import clsx from 'clsx';
+import { ArrowRight, CheckCircle } from 'lucide-react';
 
 interface ContextMenuPosition {
   x: number;
@@ -18,6 +19,8 @@ interface EventContextMenuProps {
   onCut: (event: PlanEvent) => void;
   onCopy: (event: PlanEvent) => void;
   onDuplicate: (event: PlanEvent) => void;
+  onMoveToNextDay?: (event: PlanEvent) => void;
+  onMarkDone?: (event: PlanEvent) => void;
 }
 
 export function EventContextMenu({
@@ -28,6 +31,8 @@ export function EventContextMenu({
   onCut,
   onCopy,
   onDuplicate,
+  onMoveToNextDay,
+  onMarkDone,
 }: EventContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,7 +62,35 @@ export function EventContextMenu({
 
   if (!event || !position) return null;
 
-  const menuItems = [
+  const menuItems: any[] = [];
+  
+  if (onMarkDone && event.status !== 'done') {
+    menuItems.push({
+      label: 'Mark Done',
+      icon: <CheckCircle className="w-4 h-4" />,
+      onClick: () => {
+        onMarkDone(event);
+        onClose();
+      },
+    });
+  }
+
+  if (onMoveToNextDay) {
+    menuItems.push({
+      label: 'Move to Next Day',
+      icon: <ArrowRight className="w-4 h-4" />,
+      onClick: () => {
+        onMoveToNextDay(event);
+        onClose();
+      },
+    });
+  }
+
+  if (menuItems.length > 0) {
+    menuItems.push({ type: 'separator' });
+  }
+
+  menuItems.push(
     {
       label: 'Cut',
       icon: (
