@@ -9,6 +9,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import clsx from 'clsx';
 import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
+import { DaySummaryTooltip } from '@/components/ui/DaySummaryTooltip';
 import { DroppableCalendarCell } from '@/components/dnd';
 import { useRouter } from 'next/navigation';
 import { expandRecurringEvents } from '@/utils/recurrence';
@@ -77,6 +78,7 @@ export function MonthView() {
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
   const [contextMenu, setContextMenu] = useState<{ event: PlanEvent; position: { x: number; y: number } } | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [daySummary, setDaySummary] = useState<{ date: Date; events: PlanEvent[]; position: { x: number; y: number } } | null>(null);
   const [dragSelection, setDragSelection] = useState<DragSelectionState | null>(null);
   const tooltipTimeout = useRef<NodeJS.Timeout | null>(null);
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -501,6 +503,23 @@ export function MonthView() {
           }
         });
 
+        const MAX_ROWS = 3;
+        const hiddenEventsPerDay = new Map<string, number>();
+
+        sortedEvents.forEach(event => {
+          const row = eventRows.get(event.id) ?? 0;
+          if (row >= MAX_ROWS) {
+            week.forEach(day => {
+              const start = startOfDay(new Date(event.startDate));
+              const end = startOfDay(new Date(event.endDate));
+              if (day >= start && day <= end) {
+                 const key = day.toISOString();
+                 hiddenEventsPerDay.set(key, (hiddenEventsPerDay.get(key) || 0) + 1);
+              }
+            });
+          }
+        });
+
         return (
           <div key={weekIndex} className="relative">
             {/* Day cells */}
@@ -510,22 +529,37 @@ export function MonthView() {
                 const dayIsWeekend = isWeekend(date);
                 const isCurrentMonth = isSameMonth(date, currentDate);
                 const isHovered = hoveredDate && isSameDay(date, hoveredDate);
+                const hiddenCount = hiddenEventsPerDay.get(date.toISOString()) || 0;
 
                 return (
                   <DroppableCalendarCell
                     key={date.toISOString()}
                     date={date}
                     onMouseDown={(e) => handleDayMouseDown(date, e)}
-                    onMouseEnter={() => {
+                    onMouseEnter={(e) => {
                       if (isDragging.current && dragSelection) {
-                         // This is handled by global mouse move for precise tracking, 
-                         // but we can add redundant check here if needed or just leave as is since we use elementFromPoint
+                         return;
+                      }
+                      
+                      const eventsForDay = expandedEvents.filter(event => {
+                         const start = startOfDay(new Date(event.startDate));
+                         const end = startOfDay(new Date(event.endDate));
+                         return date >= start && date <= end;
+                      });
+                      
+                      if (eventsForDay.length > 0) {
+                         setDaySummary({
+                             date,
+                             events: eventsForDay.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
+                             position: { x: e.clientX + 20, y: e.clientY + 20 }
+                         });
                       }
                     }}
+                    onMouseLeave={() => setDaySummary(null)}
                     onDoubleClick={() => handleDayDoubleClick(date)}
                     onContextMenu={(e) => handleDayContextMenu(e, date)}
                     className={clsx(
-                      'min-h-[120px] p-2 border-b border-r border-gray-100 dark:border-gray-800 transition-colors cursor-pointer select-none',
+                      'min-h-[120px] p-2 border-b border-r border-gray-100 dark:border-gray-800 transition-colors cursor-pointer select-none relative',
                       !isCurrentMonth && 'bg-gray-50 dark:bg-gray-900/50',
                       dayIsWeekend && isCurrentMonth && 'bg-gray-50/50 dark:bg-gray-900/30',
                       'hover:bg-gray-100 dark:hover:bg-gray-800/50',
@@ -551,7 +585,15 @@ export function MonthView() {
                     </div>
                     
                     {/* Spacer for multi-day events */}
-                    <div className="h-[calc(100%-32px)]" />
+                    <div className="h-[calc(100%-32px)]">
+                      {hiddenCount > 0 && (
+                        <div className="absolute bottom-2 left-2 right-2">
+                           <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 rounded">
+                             +{hiddenCount} more
+                           </span>
+                        </div>
+                      )}
+                    </div>
                   </DroppableCalendarCell>
                 );
               })}
@@ -578,6 +620,8 @@ export function MonthView() {
                   const isMultiDay = differenceInDays(effectiveEnd, effectiveStart) > 0;
 
                   const row = eventRows.get(event.id) ?? 0;
+                  
+                  if (row >= 3) return null;
 
                   return (
                     <motion.div
@@ -703,6 +747,13 @@ export function MonthView() {
       <EventTooltip
         event={tooltip?.event || null}
         position={tooltip?.position || null}
+      />
+
+      {/* Day Summary Tooltip */}
+      <DaySummaryTooltip
+        date={daySummary?.date || null}
+        events={daySummary?.events || []}
+        position={daySummary?.position || null}
       />
     </motion.div>
   );
