@@ -9,6 +9,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import clsx from 'clsx';
 import { EventContextMenu } from './EventContextMenu';
 import { EventTooltip } from '@/components/ui/EventTooltip';
+import { DaySummaryTooltip } from '@/components/ui/DaySummaryTooltip';
 import { useRouter } from 'next/navigation';
 import { expandRecurringEvents } from '@/utils/recurrence';
 import { toast } from '@/components/ui/Toast';
@@ -48,7 +49,8 @@ interface MiniMonthProps {
   eventDrag: EventDragState | null;
   resize: ResizeState | null;
   onDayMouseDown: (date: Date, e: React.MouseEvent) => void;
-  onDayMouseEnter: (date: Date) => void;
+  onDayMouseEnter: (date: Date, e: React.MouseEvent) => void;
+  onDayMouseLeave: () => void;
   onDayDoubleClick: (date: Date) => void;
   onDayContextMenu: (date: Date, e: React.MouseEvent) => void;
   onEventClick: (event: PlanEvent, e: React.MouseEvent) => void;
@@ -69,6 +71,7 @@ function MiniMonth({
   resize,
   onDayMouseDown, 
   onDayMouseEnter, 
+  onDayMouseLeave,
   onDayDoubleClick,
   onDayContextMenu,
   onEventClick,
@@ -229,7 +232,8 @@ function MiniMonth({
                       if (el) cellRefs.current.set(date.toISOString(), el);
                     }}
                     onMouseDown={(e) => onDayMouseDown(date, e)}
-                    onMouseEnter={() => onDayMouseEnter(date)}
+                    onMouseEnter={(e) => onDayMouseEnter(date, e)}
+                    onMouseLeave={onDayMouseLeave}
                     onDoubleClick={() => onDayDoubleClick(date)}
                     onContextMenu={(e) => onDayContextMenu(date, e)}
                     style={{ minHeight: `${weekRowHeight}px` }}
@@ -487,7 +491,9 @@ export function MultiMonthView() {
   const [resize, setResize] = useState<ResizeState | null>(null);
   const [contextMenu, setContextMenu] = useState<{ event: PlanEvent; position: { x: number; y: number } } | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [daySummary, setDaySummary] = useState<{ date: Date; events: PlanEvent[]; position: { x: number; y: number } } | null>(null);
   const tooltipTimeout = useRef<NodeJS.Timeout | null>(null);
+  const summaryTimeout = useRef<NodeJS.Timeout | null>(null);
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const isDragging = useRef(false);
@@ -633,11 +639,39 @@ export function MultiMonthView() {
     setDragSelection({ startDate: date, endDate: date });
   }, []);
 
-  const handleDayMouseEnter = useCallback((date: Date) => {
+  const handleDayMouseEnter = useCallback((date: Date, e: React.MouseEvent) => {
     // Only check ref to avoid stale closure issues
     if (isDragging.current) {
       setDragSelection(prev => prev ? { ...prev, endDate: date } : null);
+      return;
     }
+
+    if (!dragSelection && !eventDrag && !resize) {
+      const eventsForDay = expandedEvents.filter(event => {
+          const start = startOfDay(new Date(event.startDate));
+          const end = startOfDay(new Date(event.endDate));
+          return date >= start && date <= end;
+      });
+      
+      if (eventsForDay.length > 0) {
+          if (summaryTimeout.current) {
+            clearTimeout(summaryTimeout.current);
+            summaryTimeout.current = null;
+          }
+          setDaySummary({
+              date,
+              events: eventsForDay.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
+              position: { x: e.clientX + 20, y: e.clientY + 20 }
+          });
+      }
+    }
+  }, [dragSelection, eventDrag, resize, expandedEvents]);
+
+  const handleDayMouseLeave = useCallback(() => {
+    if (summaryTimeout.current) clearTimeout(summaryTimeout.current);
+    summaryTimeout.current = setTimeout(() => {
+        setDaySummary(null);
+    }, 300);
   }, []);
 
   const handleDayDoubleClick = useCallback((date: Date) => {
@@ -747,6 +781,7 @@ export function MultiMonthView() {
               resize={resize}
               onDayMouseDown={handleDayMouseDown}
               onDayMouseEnter={handleDayMouseEnter}
+              onDayMouseLeave={handleDayMouseLeave}
               onDayDoubleClick={handleDayDoubleClick}
               onDayContextMenu={handleDayContextMenu}
               onEventClick={handleEventClick}
@@ -817,6 +852,22 @@ export function MultiMonthView() {
       <EventTooltip
         event={tooltip?.event || null}
         position={tooltip?.position || null}
+      />
+
+      {/* Day Summary Tooltip */}
+      <DaySummaryTooltip
+        date={daySummary?.date || null}
+        events={daySummary?.events || []}
+        position={daySummary?.position || null}
+        onMouseEnter={() => {
+            if (summaryTimeout.current) {
+                clearTimeout(summaryTimeout.current);
+                summaryTimeout.current = null;
+            }
+        }}
+        onMouseLeave={() => {
+            setDaySummary(null);
+        }}
       />
     </motion.div>
   );

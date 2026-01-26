@@ -5,19 +5,22 @@ import { format, addMonths, startOfYear, eachMonthOfInterval, endOfYear, startOf
 import { useUIStore } from '@/store/uiStore';
 import { useEvents } from '@/hooks/useEventsQuery';
 import { PlanEvent, colorClasses } from '@/types';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
 import { expandRecurringEvents } from '@/utils/recurrence';
+import { DaySummaryTooltip } from '@/components/ui/DaySummaryTooltip';
 
 interface YearMonthProps {
   monthDate: Date;
   onClick: () => void;
   onDayClick: (date: Date) => void;
   onDayDoubleClick: (date: Date) => void;
+  onDayMouseEnter: (date: Date, events: PlanEvent[], e: React.MouseEvent) => void;
+  onDayMouseLeave: () => void;
 }
 
-function YearMonth({ monthDate, onClick, onDayClick, onDayDoubleClick }: YearMonthProps) {
+function YearMonth({ monthDate, onClick, onDayClick, onDayDoubleClick, onDayMouseEnter, onDayMouseLeave }: YearMonthProps) {
   const { selectedPlanTypes } = useUIStore();
   const { data: events = [] } = useEvents();
   
@@ -108,6 +111,8 @@ function YearMonth({ monthDate, onClick, onDayClick, onDayDoubleClick }: YearMon
                 e.stopPropagation();
                 onDayDoubleClick(date);
               }}
+              onMouseEnter={(e) => onDayMouseEnter(date, events, e)}
+              onMouseLeave={onDayMouseLeave}
               className={clsx(
                 'aspect-square flex items-center justify-center rounded text-[10px] cursor-pointer',
                 dayIsToday && 'bg-blue-500 text-white font-bold',
@@ -152,12 +157,35 @@ export function YearView() {
   const { currentDate, setCurrentDate, setViewMode, openEventModal } = useUIStore();
   const router = useRouter();
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [daySummary, setDaySummary] = useState<{ date: Date; events: PlanEvent[]; position: { x: number; y: number } } | null>(null);
+  const summaryTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const months = useMemo(() => {
     const yearStart = startOfYear(currentDate);
     const yearEnd = endOfYear(currentDate);
     return eachMonthOfInterval({ start: yearStart, end: yearEnd });
   }, [currentDate]);
+
+  const handleDayMouseEnter = useCallback((date: Date, events: PlanEvent[], e: React.MouseEvent) => {
+    if (events.length > 0) {
+      if (summaryTimeout.current) {
+        clearTimeout(summaryTimeout.current);
+        summaryTimeout.current = null;
+      }
+      setDaySummary({
+        date,
+        events: events.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
+        position: { x: e.clientX + 10, y: e.clientY + 10 }
+      });
+    }
+  }, []);
+
+  const handleDayMouseLeave = useCallback(() => {
+    if (summaryTimeout.current) clearTimeout(summaryTimeout.current);
+    summaryTimeout.current = setTimeout(() => {
+      setDaySummary(null);
+    }, 300);
+  }, []);
 
   const handleMonthClick = (monthDate: Date) => {
     setCurrentDate(monthDate);
@@ -210,11 +238,29 @@ export function YearView() {
                 onClick={() => handleMonthClick(monthDate)}
                 onDayClick={handleDayClick}
                 onDayDoubleClick={handleDayDoubleClick}
+                onDayMouseEnter={handleDayMouseEnter}
+                onDayMouseLeave={handleDayMouseLeave}
               />
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
+
+       {/* Day Summary Tooltip */}
+       <DaySummaryTooltip
+        date={daySummary?.date || null}
+        events={daySummary?.events || []}
+        position={daySummary?.position || null}
+        onMouseEnter={() => {
+            if (summaryTimeout.current) {
+                clearTimeout(summaryTimeout.current);
+                summaryTimeout.current = null;
+            }
+        }}
+        onMouseLeave={() => {
+            setDaySummary(null);
+        }}
+      />
     </motion.div>
   );
 }
