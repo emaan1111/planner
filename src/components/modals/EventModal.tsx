@@ -92,7 +92,7 @@ export function EventModal() {
     title: '',
     description: '',
     startDate: format(currentDate, 'yyyy-MM-dd'),
-    endDate: format(addDays(currentDate, 1), 'yyyy-MM-dd'),
+    endDate: format(currentDate, 'yyyy-MM-dd'),
     planType: defaultPlanType,
     color: defaultColor,
     priority: 'medium',
@@ -132,8 +132,13 @@ export function EventModal() {
       setShowRecurrenceOptions(!!selectedEvent.recurrence);
     } else {
       // Use newEventDateRange if provided (from drag selection), otherwise use currentDate
-      const startDate = newEventDateRange?.startDate || currentDate;
-      const endDate = newEventDateRange?.endDate || addDays(currentDate, 1);
+      let startDate = newEventDateRange?.startDate || currentDate;
+      let endDate = newEventDateRange?.endDate || currentDate;
+      
+      // If no range explicitly provided (just current date), ensure single day duration by default
+      if (!newEventDateRange) {
+         endDate = startDate;
+      }
       
       setFormData({
         title: '',

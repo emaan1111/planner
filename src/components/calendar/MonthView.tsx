@@ -538,33 +538,10 @@ export function MonthView() {
                     date={date}
                     onMouseDown={(e) => handleDayMouseDown(date, e)}
                     onMouseEnter={(e) => {
-                      if (isDragging.current && dragSelection) {
-                         return;
+                      if (isDragging.current) {
+                        // Handle drag hover effects if needed
+                        return;
                       }
-                      
-                      const eventsForDay = expandedEvents.filter(event => {
-                         const start = startOfDay(new Date(event.startDate));
-                         const end = startOfDay(new Date(event.endDate));
-                         return date >= start && date <= end;
-                      });
-                      
-                      if (eventsForDay.length > 0) {
-                         if (summaryTimeout.current) {
-                           clearTimeout(summaryTimeout.current);
-                           summaryTimeout.current = null;
-                         }
-                         setDaySummary({
-                             date,
-                             events: eventsForDay.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
-                             position: { x: e.clientX + 20, y: e.clientY + 20 }
-                         });
-                      }
-                    }}
-                    onMouseLeave={() => {
-                        if (summaryTimeout.current) clearTimeout(summaryTimeout.current);
-                        summaryTimeout.current = setTimeout(() => {
-                           setDaySummary(null);
-                        }, 300);
                     }}
                     onDoubleClick={() => handleDayDoubleClick(date)}
                     onContextMenu={(e) => handleDayContextMenu(e, date)}
@@ -597,8 +574,36 @@ export function MonthView() {
                     {/* Spacer for multi-day events */}
                     <div className="h-[calc(100%-32px)] relative">
                       {hiddenCount > 0 && (
-                        <div className="absolute bottom-1 left-1 right-1 z-10">
-                           <span className="block w-full text-center py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded shadow-sm border border-gray-100 dark:border-gray-700">
+                        <div 
+                           className="absolute bottom-1 left-1 right-1 z-10"
+                           onMouseEnter={(e) => {
+                             if (isDragging.current) return;
+                             const eventsForDay = expandedEvents.filter(event => {
+                                const start = startOfDay(new Date(event.startDate));
+                                const end = startOfDay(new Date(event.endDate));
+                                return date >= start && date <= end;
+                             });
+                             
+                             if (eventsForDay.length > 0) {
+                                if (summaryTimeout.current) {
+                                  clearTimeout(summaryTimeout.current);
+                                  summaryTimeout.current = null;
+                                }
+                                setDaySummary({
+                                    date,
+                                    events: eventsForDay.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
+                                    position: { x: e.clientX + 20, y: e.clientY + 20 }
+                                });
+                             }
+                           }}
+                           onMouseLeave={() => {
+                               if (summaryTimeout.current) clearTimeout(summaryTimeout.current);
+                               summaryTimeout.current = setTimeout(() => {
+                                  setDaySummary(null);
+                               }, 300);
+                           }}
+                        >
+                           <span className="block w-full text-center py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded shadow-sm border border-gray-100 dark:border-gray-700 hover:text-blue-500 transition-colors">
                              +{hiddenCount} more
                            </span>
                         </div>

@@ -83,6 +83,8 @@ function MiniMonth({
   cellRefs 
 }: MiniMonthProps) {
   const { selectedPlanTypes } = useUIStore();
+  const [daySummary, setDaySummary] = useState<{ date: Date; events: PlanEvent[]; position: { x: number; y: number } } | null>(null);
+  const summaryTimeout = useRef<NodeJS.Timeout | null>(null);
   
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
@@ -459,6 +461,33 @@ function MiniMonth({
                             width: `${100/7}%`,
                             top: `${MAX_EVENTS_PER_WEEK * 20}px`
                           }}
+                           onMouseEnter={(e) => {
+                             if (eventDrag || resize || dragSelection) return;
+                             
+                             const eventsForDay = monthEvents.filter(event => {
+                                const start = startOfDay(new Date(event.startDate));
+                                const end = startOfDay(new Date(event.endDate));
+                                return day >= start && day <= end;
+                             });
+                             
+                             if (eventsForDay.length > 0) {
+                                if (summaryTimeout.current) {
+                                  clearTimeout(summaryTimeout.current);
+                                  summaryTimeout.current = null;
+                                }
+                                setDaySummary({
+                                    date: day,
+                                    events: eventsForDay.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
+                                    position: { x: e.clientX + 20, y: e.clientY + 20 }
+                                });
+                             }
+                           }}
+                           onMouseLeave={() => {
+                               if (summaryTimeout.current) clearTimeout(summaryTimeout.current);
+                               summaryTimeout.current = setTimeout(() => {
+                                  setDaySummary(null);
+                               }, 300);
+                           }}
                         >
                            +{count} more
                         </div>
@@ -473,6 +502,21 @@ function MiniMonth({
           </div>
         );
       })}
+
+      <DaySummaryTooltip
+        date={daySummary?.date || null}
+        events={daySummary?.events || []}
+        position={daySummary?.position || null}
+        onMouseEnter={() => {
+            if (summaryTimeout.current) {
+                clearTimeout(summaryTimeout.current);
+                summaryTimeout.current = null;
+            }
+        }}
+        onMouseLeave={() => {
+            setDaySummary(null);
+        }}
+      />
     </motion.div>
   );
 }
