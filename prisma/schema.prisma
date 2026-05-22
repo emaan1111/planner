@@ -198,6 +198,72 @@ model Scenario {
   events     ScenarioEvent[]
 }
 
+// ----------------------------------------------------------------------------
+// CFO Financial Models: horizon-based P&L projections for the org.
+// ----------------------------------------------------------------------------
+
+model FinancialModel {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  caseType      String   @default("baseline") // baseline | best | worst | custom
+  horizonMonths Int      @default(24)
+  startMonth    DateTime
+  startingCash  Float    @default(0)
+  taxPercent    Float    @default(0)
+  notes         String?
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  lines     ModelLine[]
+  headcount ModelHeadcount[]
+}
+
+model ModelLine {
+  id                   String   @id @default(cuid())
+  modelId              String
+  name                 String
+  kind                 String // revenue | cost
+  category             String?
+  inputMode            String // flat | growth | manual | linked-scenario | driver
+  flatAmount           Float?
+  startAmount          Float?
+  monthlyGrowthPercent Float?
+  manualValues         Json?
+  linkedScenarioId     String?
+  linkedField          String? // revenue | cost | profit
+  driverPercent        Float?
+  driverBase           String? // revenue | cost | memberCount
+  order                Int      @default(0)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  model FinancialModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId])
+}
+
+model ModelHeadcount {
+  id              String    @id @default(cuid())
+  modelId         String
+  name            String
+  role            String?
+  annualSalary    Float     @default(0)
+  startMonth      DateTime
+  endMonth        DateTime?
+  benefitsPercent Float     @default(20)
+  notes           String?
+  order           Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  model FinancialModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId])
+}
+
 // Holidays, key dates, and free-form notes pinned to a scenario calendar.
 // Kept separate from the global Event model so scenarios don't leak into the main planner.
 model ScenarioEvent {
