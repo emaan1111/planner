@@ -50,10 +50,15 @@ export function ScenarioDndProvider({ children }: ScenarioDndProviderProps) {
     const course = courses.find((c) => c.id === courseId);
     if (!course) return;
 
+    // Compute delivery start using the template's typical gap so non-contiguous schedules work out of the box.
+    const deliveryStart = new Date(dropDate);
+    deliveryStart.setDate(deliveryStart.getDate() + course.marketingDurationDays + course.defaultGapDays);
+
     createPlacement.mutate({
       scenarioId: activeScenarioId,
       courseTemplateId: course.id,
       startDate: dropDate,
+      deliveryStartDate: deliveryStart,
     });
   };
 

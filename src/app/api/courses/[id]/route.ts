@@ -24,6 +24,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         description: body.description,
         marketingDurationDays: body.marketingDurationDays,
         deliveryDurationDays: body.deliveryDurationDays,
+        defaultGapDays: body.defaultGapDays,
         defaultPricePerChild: body.defaultPricePerChild,
         defaultCostPerRun: body.defaultCostPerRun,
         defaultProjectedRegistrations: body.defaultProjectedRegistrations,
@@ -32,6 +33,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         defaultNotes: body.defaultNotes,
         marketingColor: body.marketingColor,
         deliveryColor: body.deliveryColor,
+        isMembership: body.isMembership,
+        billingPeriodDays: body.billingPeriodDays,
+        defaultMonthlyChurnPercent: body.defaultMonthlyChurnPercent,
+        defaultRetentionMonths: body.defaultRetentionMonths,
       },
     });
     return NextResponse.json(course);

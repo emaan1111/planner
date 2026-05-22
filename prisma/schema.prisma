@@ -149,6 +149,7 @@ model CourseTemplate {
   description                   String?
   marketingDurationDays         Int      @default(14)
   deliveryDurationDays          Int      @default(7)
+  defaultGapDays                Int      @default(0) // days between marketing end and delivery start
   defaultPricePerChild          Float    @default(0)
   defaultCostPerRun             Float    @default(0)
   defaultProjectedRegistrations Int      @default(0)
@@ -157,6 +158,11 @@ model CourseTemplate {
   defaultNotes                  String?
   marketingColor                String   @default("purple")
   deliveryColor                 String   @default("blue")
+  // Membership courses bill on a recurring cadence; revenue projects with churn over a retention horizon.
+  isMembership                  Boolean  @default(false)
+  billingPeriodDays             Int      @default(30)
+  defaultMonthlyChurnPercent    Float    @default(5)
+  defaultRetentionMonths        Int      @default(12)
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
 
@@ -189,6 +195,26 @@ model Scenario {
 
   folder     ScenarioFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
   placements CoursePlacement[]
+  events     ScenarioEvent[]
+}
+
+// Holidays, key dates, and free-form notes pinned to a scenario calendar.
+// Kept separate from the global Event model so scenarios don't leak into the main planner.
+model ScenarioEvent {
+  id         String   @id @default(cuid())
+  scenarioId String
+  title      String
+  startDate  DateTime
+  endDate    DateTime
+  color      String   @default("amber")
+  kind       String   @default("note") // note | holiday | milestone
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  scenario Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@index([scenarioId])
 }
 
 // A course placed on a scenario calendar — carries per-scenario dials
@@ -196,7 +222,8 @@ model CoursePlacement {
   id                     String   @id @default(cuid())
   scenarioId             String
   courseTemplateId       String
-  startDate              DateTime
+  startDate              DateTime // marketing start date
+  deliveryStartDate      DateTime // independent — can be days, weeks, or months after marketing ends
   marketingDurationDays  Int
   deliveryDurationDays   Int
   pricePerChild          Float
@@ -205,8 +232,16 @@ model CoursePlacement {
   likelihoodPercent      Int      @default(70)
   risks                  String?
   notes                  String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  // Membership overrides (mirror template defaults at creation time, editable per scenario)
+  isMembership                 Boolean  @default(false)
+  monthlyChurnPercent          Float    @default(5)
+  retentionMonths              Int      @default(12)
+  // Entry funnel: 'direct' or 'trial-to-paid'
+  entryMode                    String   @default("direct")
+  trialDurationDays            Int      @default(0)
+  trialToPaidConversionPercent Float    @default(100)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 
   scenario       Scenario       @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   courseTemplate CourseTemplate @relation(fields: [courseTemplateId], references: [id], onDelete: Restrict)

@@ -10,9 +10,15 @@ import {
   useBulkUpdatePlacements,
   useDeletePlacement,
 } from '@/hooks/useScenariosQuery';
-import { computePlacementMetrics, OverrideScope, CoursePlacement } from '@/types/scenarios';
+import {
+  computePlacementMetrics,
+  computeRevenue,
+  OverrideScope,
+  CoursePlacement,
+} from '@/types/scenarios';
 import { X, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from '@/components/ui/Toast';
+import { format } from 'date-fns';
 import clsx from 'clsx';
 
 export function PlacementEditor() {
@@ -21,7 +27,6 @@ export function PlacementEditor() {
   const placement = placements.find((p) => p.id === editingPlacementId) ?? null;
 
   if (!placement) return null;
-  // Reset internal state when the focused placement changes by remounting.
   return <PlacementEditorBody key={placement.id} placement={placement} />;
 }
 
@@ -40,45 +45,52 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
     likelihoodPercent: placement.likelihoodPercent,
     marketingDurationDays: placement.marketingDurationDays,
     deliveryDurationDays: placement.deliveryDurationDays,
+    startDate: new Date(placement.startDate),
+    deliveryStartDate: new Date(placement.deliveryStartDate),
     risks: placement.risks ?? '',
     notes: placement.notes ?? '',
+    isMembership: placement.isMembership,
+    monthlyChurnPercent: placement.monthlyChurnPercent,
+    retentionMonths: placement.retentionMonths,
+    entryMode: placement.entryMode,
+    trialDurationDays: placement.trialDurationDays,
+    trialToPaidConversionPercent: placement.trialToPaidConversionPercent,
   }));
 
-  const m = computePlacementMetrics({ ...placement, ...form } as CoursePlacement);
+  const merged = { ...placement, ...form } as CoursePlacement;
+  const m = computePlacementMetrics(merged);
+  const revenue = computeRevenue(merged);
 
   const apply = async () => {
-    if (!form) return;
     if (scope === 'this-placement') {
       await updatePlacement.mutateAsync({ id: placement.id, updates: form });
       toast.success('Updated this placement');
     } else if (scope === 'all-placements-of-course') {
-      // Update this placement first so the editor reflects the new values, then broadcast.
       await updatePlacement.mutateAsync({ id: placement.id, updates: form });
-      await bulkUpdate.mutateAsync({
-        courseTemplateId: placement.courseTemplateId,
-        updates: form,
-      });
+      await bulkUpdate.mutateAsync({ courseTemplateId: placement.courseTemplateId, updates: form });
       toast.success('Applied to all calendars using this course');
     } else if (scope === 'template-default') {
-      // Write defaults to the template so future placements pick them up.
       await updatePlacement.mutateAsync({ id: placement.id, updates: form });
       const templateUpdates: Record<string, unknown> = {};
       if (form.pricePerChild !== undefined) templateUpdates.defaultPricePerChild = form.pricePerChild;
       if (form.costPerRun !== undefined) templateUpdates.defaultCostPerRun = form.costPerRun;
       if (form.projectedRegistrations !== undefined)
         templateUpdates.defaultProjectedRegistrations = form.projectedRegistrations;
-      if (form.likelihoodPercent !== undefined)
-        templateUpdates.defaultLikelihoodPercent = form.likelihoodPercent;
-      if (form.marketingDurationDays !== undefined)
-        templateUpdates.marketingDurationDays = form.marketingDurationDays;
-      if (form.deliveryDurationDays !== undefined)
-        templateUpdates.deliveryDurationDays = form.deliveryDurationDays;
+      if (form.likelihoodPercent !== undefined) templateUpdates.defaultLikelihoodPercent = form.likelihoodPercent;
+      if (form.marketingDurationDays !== undefined) templateUpdates.marketingDurationDays = form.marketingDurationDays;
+      if (form.deliveryDurationDays !== undefined) templateUpdates.deliveryDurationDays = form.deliveryDurationDays;
       if (form.risks !== undefined) templateUpdates.defaultRisks = form.risks;
       if (form.notes !== undefined) templateUpdates.defaultNotes = form.notes;
+      if (form.isMembership !== undefined) templateUpdates.isMembership = form.isMembership;
+      if (form.monthlyChurnPercent !== undefined) templateUpdates.defaultMonthlyChurnPercent = form.monthlyChurnPercent;
+      if (form.retentionMonths !== undefined) templateUpdates.defaultRetentionMonths = form.retentionMonths;
       await updateCourse.mutateAsync({ id: placement.courseTemplateId, updates: templateUpdates });
       toast.success('Saved as the course default');
     }
+    closePlacementEditor();
   };
+
+  const courseName = placement.courseTemplate?.name ?? 'Course Placement';
 
   return (
     <AnimatePresence>
@@ -94,36 +106,70 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-[640px] max-w-[92vw] max-h-[90vh] overflow-hidden flex flex-col"
+          className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-[680px] max-w-[92vw] max-h-[90vh] overflow-hidden flex flex-col"
         >
           <header className="px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-                {placement.courseTemplate?.name ?? 'Course Placement'}
+              <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                {courseName}
+                {merged.isMembership && (
+                  <span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                    Membership
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-gray-500">
-                Marketing {m.marketingStart.toLocaleDateString()} → {addDays(m.deliveryStart, -1).toLocaleDateString()}{' '}
-                · Delivery {m.deliveryStart.toLocaleDateString()} → {m.deliveryEnd.toLocaleDateString()}
+                Marketing {format(m.marketingStart, 'd MMM yyyy')} – {format(addDays(m.marketingEnd, -1), 'd MMM yyyy')} · Delivery {format(m.deliveryStart, 'd MMM yyyy')} – {format(m.deliveryEnd, 'd MMM yyyy')}
               </p>
             </div>
-            <button
-              onClick={closePlacementEditor}
-              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
+            <button onClick={closePlacementEditor} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
               <X className="w-4 h-4 text-gray-500" />
             </button>
           </header>
 
           <div className="p-5 overflow-y-auto space-y-4">
-            {/* Live metrics */}
             <div className="grid grid-cols-4 gap-2">
-              <Metric label="Revenue" value={`$${m.revenue.toFixed(0)}`} tone="indigo" />
+              <Metric label="Revenue" value={`$${revenue.toFixed(0)}`} tone="indigo" />
               <Metric label="Cost" value={`$${m.cost.toFixed(0)}`} tone="rose" />
               <Metric label="Profit" value={`$${m.profit.toFixed(0)}`} tone={m.profit >= 0 ? 'emerald' : 'rose'} />
               <Metric label="EV" value={`$${m.expectedValue.toFixed(0)}`} tone={m.expectedValue >= 0 ? 'emerald' : 'rose'} />
             </div>
 
-            {/* Dials */}
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Marketing start">
+                <input
+                  type="date"
+                  value={toIsoDate(form.startDate ?? placement.startDate)}
+                  onChange={(e) => setForm({ ...form, startDate: new Date(e.target.value) })}
+                  className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
+              </Field>
+              <Field label="Delivery start">
+                <input
+                  type="date"
+                  value={toIsoDate(form.deliveryStartDate ?? placement.deliveryStartDate)}
+                  onChange={(e) => setForm({ ...form, deliveryStartDate: new Date(e.target.value) })}
+                  className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
+              </Field>
+            </div>
+
+            {/* Durations in weeks */}
+            <div className="grid grid-cols-2 gap-3">
+              <WeeksDial
+                label="Marketing duration"
+                days={form.marketingDurationDays ?? 0}
+                onChange={(d) => setForm({ ...form, marketingDurationDays: d })}
+              />
+              <WeeksDial
+                label="Delivery duration"
+                days={form.deliveryDurationDays ?? 1}
+                onChange={(d) => setForm({ ...form, deliveryDurationDays: d })}
+              />
+            </div>
+
+            {/* Financial dials */}
             <DialSlider
               label="Projected registrations"
               value={form.projectedRegistrations ?? 0}
@@ -131,10 +177,10 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
               max={Math.max(200, (form.projectedRegistrations ?? 0) * 2 + 50)}
               step={1}
               onChange={(v) => setForm({ ...form, projectedRegistrations: v })}
-              suffix=" kids"
+              suffix={merged.isMembership ? ' initial members' : ' kids'}
             />
             <DialSlider
-              label="Price per child"
+              label={merged.isMembership ? 'Price per member / period' : 'Price per child'}
               value={form.pricePerChild ?? 0}
               min={0}
               max={Math.max(500, (form.pricePerChild ?? 0) * 2 + 100)}
@@ -161,25 +207,106 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
               suffix="%"
             />
 
-            <div className="grid grid-cols-2 gap-3">
-              <DialSlider
-                label="Marketing duration"
-                value={form.marketingDurationDays ?? 0}
-                min={0}
-                max={90}
-                step={1}
-                onChange={(v) => setForm({ ...form, marketingDurationDays: v })}
-                suffix=" days"
-              />
-              <DialSlider
-                label="Delivery duration"
-                value={form.deliveryDurationDays ?? 0}
-                min={1}
-                max={60}
-                step={1}
-                onChange={(v) => setForm({ ...form, deliveryDurationDays: v })}
-                suffix=" days"
-              />
+            {/* Membership controls */}
+            <div className="rounded border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!form.isMembership}
+                  onChange={(e) => setForm({ ...form, isMembership: e.target.checked })}
+                  className="accent-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Membership projection</span>
+              </label>
+              {form.isMembership && (
+                <>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <DialSlider
+                      label="Monthly churn"
+                      value={form.monthlyChurnPercent ?? 5}
+                      min={0}
+                      max={50}
+                      step={0.5}
+                      onChange={(v) => setForm({ ...form, monthlyChurnPercent: v })}
+                      suffix="%"
+                    />
+                    <DialSlider
+                      label="Retention horizon"
+                      value={form.retentionMonths ?? 12}
+                      min={1}
+                      max={48}
+                      step={1}
+                      onChange={(v) => setForm({ ...form, retentionMonths: v })}
+                      suffix=" mo"
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Entry mode</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <button
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            entryMode: 'direct',
+                            trialDurationDays: 0,
+                            trialToPaidConversionPercent: 100,
+                          })
+                        }
+                        className={clsx(
+                          'text-left px-2 py-1.5 rounded border text-xs',
+                          form.entryMode !== 'trial-to-paid'
+                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-200'
+                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
+                        )}
+                      >
+                        <div className="font-semibold">Direct entry</div>
+                        <div className="opacity-70 text-[10px]">Sign up & pay immediately</div>
+                      </button>
+                      <button
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            entryMode: 'trial-to-paid',
+                            trialDurationDays: form.trialDurationDays || 14,
+                            trialToPaidConversionPercent: form.trialToPaidConversionPercent || 50,
+                          })
+                        }
+                        className={clsx(
+                          'text-left px-2 py-1.5 rounded border text-xs',
+                          form.entryMode === 'trial-to-paid'
+                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-200'
+                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
+                        )}
+                      >
+                        <div className="font-semibold">Trial → paid</div>
+                        <div className="opacity-70 text-[10px]">Trial period, then conversion %</div>
+                      </button>
+                    </div>
+                  </div>
+                  {form.entryMode === 'trial-to-paid' && (
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <DialSlider
+                        label="Trial duration"
+                        value={form.trialDurationDays ?? 14}
+                        min={1}
+                        max={60}
+                        step={1}
+                        onChange={(v) => setForm({ ...form, trialDurationDays: v })}
+                        suffix=" days"
+                      />
+                      <DialSlider
+                        label="Trial → paid conversion"
+                        value={form.trialToPaidConversionPercent ?? 50}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onChange={(v) => setForm({ ...form, trialToPaidConversionPercent: v })}
+                        suffix="%"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -212,19 +339,19 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
                   selected={scope === 'this-placement'}
                   onClick={() => setScope('this-placement')}
                   label="This scenario only"
-                  hint="Updates only this placement"
+                  hint="Only this placement"
                 />
                 <ScopeButton
                   selected={scope === 'all-placements-of-course'}
                   onClick={() => setScope('all-placements-of-course')}
                   label="All calendars w/ this course"
-                  hint="Broadcast to every scenario using this course"
+                  hint="Broadcast to every scenario"
                 />
                 <ScopeButton
                   selected={scope === 'template-default'}
                   onClick={() => setScope('template-default')}
                   label="Course default"
-                  hint="Save as the template default for future drops"
+                  hint="Save as template default"
                 />
               </div>
             </div>
@@ -249,10 +376,7 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
               >
                 Cancel
               </button>
-              <button
-                onClick={apply}
-                className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700"
-              >
+              <button onClick={apply} className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700">
                 Apply
               </button>
             </div>
@@ -293,7 +417,7 @@ function DialSlider({
             value={value}
             min={min}
             onChange={(e) => onChange(Number(e.target.value))}
-            className="w-20 text-right text-sm font-semibold bg-transparent border-b border-gray-200 dark:border-gray-700 px-1"
+            className="w-24 text-right text-sm font-semibold bg-transparent border-b border-gray-200 dark:border-gray-700 px-1"
           />
           {suffix && <span className="text-xs text-gray-500">{suffix}</span>}
         </div>
@@ -307,6 +431,46 @@ function DialSlider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-indigo-600"
       />
+    </div>
+  );
+}
+
+function WeeksDial({
+  label,
+  days,
+  onChange,
+}: {
+  label: string;
+  days: number;
+  onChange: (days: number) => void;
+}) {
+  const weeks = days / 7;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-300">{label}</label>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={Number.isFinite(weeks) ? weeks.toFixed(weeks % 1 === 0 ? 0 : 1) : 0}
+            onChange={(e) => onChange(Math.round(Number(e.target.value) * 7))}
+            className="w-20 text-right text-sm font-semibold bg-transparent border-b border-gray-200 dark:border-gray-700 px-1"
+          />
+          <span className="text-xs text-gray-500">wk</span>
+        </div>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={26}
+        step={0.5}
+        value={weeks}
+        onChange={(e) => onChange(Math.round(Number(e.target.value) * 7))}
+        className="w-full accent-indigo-600"
+      />
+      <p className="text-[10px] text-gray-400 mt-0.5">{days} day{days === 1 ? '' : 's'}</p>
     </div>
   );
 }
@@ -352,8 +516,25 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: 'i
   );
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
 function addDays(d: Date, days: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + days);
   return r;
+}
+
+function toIsoDate(d: Date | string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }

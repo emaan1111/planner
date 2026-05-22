@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useScenariosStore } from '@/store/scenariosStore';
-import { useCourses, useCreateCourse, useUpdateCourse } from '@/hooks/useScenariosQuery';
+import { useCourses, useCreateCourse, useUpdateCourse, useBulkUpdatePlacements } from '@/hooks/useScenariosQuery';
 import { CourseTemplate } from '@/types/scenarios';
 import { EventColor, colorClasses } from '@/types';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
+import { toast } from '@/components/ui/Toast';
 
 const DEFAULT_FORM: Partial<CourseTemplate> = {
   name: '',
   description: '',
   marketingDurationDays: 14,
   deliveryDurationDays: 7,
+  defaultGapDays: 0,
   defaultPricePerChild: 0,
   defaultCostPerRun: 0,
   defaultProjectedRegistrations: 0,
@@ -22,6 +24,10 @@ const DEFAULT_FORM: Partial<CourseTemplate> = {
   defaultNotes: '',
   marketingColor: 'purple' as EventColor,
   deliveryColor: 'blue' as EventColor,
+  isMembership: false,
+  billingPeriodDays: 30,
+  defaultMonthlyChurnPercent: 5,
+  defaultRetentionMonths: 12,
 };
 
 const COLOR_OPTIONS: EventColor[] = [
@@ -35,7 +41,6 @@ export function CourseEditor() {
   const editing = courses.find((c) => c.id === editingCourseId) ?? null;
 
   if (!isCourseEditorOpen) return null;
-  // Re-mount whenever the editor opens for a different course, so initial form state derives from props.
   return <CourseEditorBody key={editing?.id ?? 'new'} editing={editing} />;
 }
 
@@ -43,15 +48,48 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
   const { closeCourseEditor } = useScenariosStore();
   const createCourse = useCreateCourse();
   const updateCourse = useUpdateCourse();
+  const bulkUpdate = useBulkUpdatePlacements();
 
   const [form, setForm] = useState<Partial<CourseTemplate>>(() =>
     editing ? { ...editing } : { ...DEFAULT_FORM },
   );
+  const [propagate, setPropagate] = useState(true);
 
   const submit = async () => {
     if (!form.name?.trim()) return;
     if (editing) {
       await updateCourse.mutateAsync({ id: editing.id, updates: form });
+      // Cascade structural changes (durations, gap, financial defaults) onto existing placements.
+      if (propagate) {
+        const placementUpdates: Record<string, unknown> = {};
+        if (form.marketingDurationDays !== undefined)
+          placementUpdates.marketingDurationDays = form.marketingDurationDays;
+        if (form.deliveryDurationDays !== undefined)
+          placementUpdates.deliveryDurationDays = form.deliveryDurationDays;
+        if (form.defaultPricePerChild !== undefined)
+          placementUpdates.pricePerChild = form.defaultPricePerChild;
+        if (form.defaultCostPerRun !== undefined) placementUpdates.costPerRun = form.defaultCostPerRun;
+        if (form.defaultProjectedRegistrations !== undefined)
+          placementUpdates.projectedRegistrations = form.defaultProjectedRegistrations;
+        if (form.defaultLikelihoodPercent !== undefined)
+          placementUpdates.likelihoodPercent = form.defaultLikelihoodPercent;
+        if (form.isMembership !== undefined) placementUpdates.isMembership = form.isMembership;
+        if (form.defaultMonthlyChurnPercent !== undefined)
+          placementUpdates.monthlyChurnPercent = form.defaultMonthlyChurnPercent;
+        if (form.defaultRetentionMonths !== undefined)
+          placementUpdates.retentionMonths = form.defaultRetentionMonths;
+        if (Object.keys(placementUpdates).length > 0) {
+          await bulkUpdate.mutateAsync({
+            courseTemplateId: editing.id,
+            updates: placementUpdates,
+          });
+          toast.success('Course updated and applied to existing placements');
+        } else {
+          toast.success('Course updated');
+        }
+      } else {
+        toast.success('Course updated');
+      }
     } else {
       await createCourse.mutateAsync(form);
     }
@@ -72,7 +110,7 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-[560px] max-w-[92vw] max-h-[90vh] overflow-hidden flex flex-col"
+          className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-[600px] max-w-[92vw] max-h-[90vh] overflow-hidden flex flex-col"
         >
           <header className="px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
@@ -103,25 +141,23 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Marketing duration (days)">
-                <input
-                  type="number"
-                  min={0}
-                  value={form.marketingDurationDays ?? 0}
-                  onChange={(e) => setForm({ ...form, marketingDurationDays: Number(e.target.value) })}
-                  className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
-                />
-              </Field>
-              <Field label="Delivery duration (days)">
-                <input
-                  type="number"
-                  min={1}
-                  value={form.deliveryDurationDays ?? 1}
-                  onChange={(e) => setForm({ ...form, deliveryDurationDays: Number(e.target.value) })}
-                  className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
-                />
-              </Field>
+            <div className="grid grid-cols-3 gap-3">
+              <WeeksField
+                label="Marketing duration"
+                days={form.marketingDurationDays ?? 0}
+                onChange={(d) => setForm({ ...form, marketingDurationDays: d })}
+              />
+              <WeeksField
+                label="Gap before delivery"
+                days={form.defaultGapDays ?? 0}
+                onChange={(d) => setForm({ ...form, defaultGapDays: d })}
+                hint="weeks between marketing end & delivery start"
+              />
+              <WeeksField
+                label="Delivery duration"
+                days={form.deliveryDurationDays ?? 1}
+                onChange={(d) => setForm({ ...form, deliveryDurationDays: d })}
+              />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -156,7 +192,7 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
               </Field>
             </div>
 
-            <Field label="Likelihood (%)">
+            <Field label={`Likelihood (${form.defaultLikelihoodPercent ?? 70}%)`}>
               <input
                 type="range"
                 min={0}
@@ -165,7 +201,6 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
                 onChange={(e) => setForm({ ...form, defaultLikelihoodPercent: Number(e.target.value) })}
                 className="w-full accent-indigo-600"
               />
-              <span className="text-xs text-gray-500">{form.defaultLikelihoodPercent ?? 70}%</span>
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
@@ -199,6 +234,73 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
                 onChange={(c) => setForm({ ...form, deliveryColor: c })}
               />
             </div>
+
+            <div className="rounded border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!form.isMembership}
+                  onChange={(e) => setForm({ ...form, isMembership: e.target.checked })}
+                  className="accent-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  This is a membership / recurring course
+                </span>
+              </label>
+              {form.isMembership && (
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  <Field label="Billing period (days)">
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.billingPeriodDays ?? 30}
+                      onChange={(e) => setForm({ ...form, billingPeriodDays: Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                    />
+                  </Field>
+                  <Field label="Monthly churn (%)">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={form.defaultMonthlyChurnPercent ?? 5}
+                      onChange={(e) => setForm({ ...form, defaultMonthlyChurnPercent: Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                    />
+                  </Field>
+                  <Field label="Retention horizon (months)">
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.defaultRetentionMonths ?? 12}
+                      onChange={(e) => setForm({ ...form, defaultRetentionMonths: Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                    />
+                  </Field>
+                </div>
+              )}
+              {form.isMembership && (
+                <p className="text-[10px] text-gray-500 mt-2">
+                  Revenue projects as price × initial registrations × (1 − (1 − churn)^N) / churn across the retention horizon.
+                </p>
+              )}
+            </div>
+
+            {editing && (
+              <label className="flex items-start gap-2 mt-2 p-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={propagate}
+                  onChange={(e) => setPropagate(e.target.checked)}
+                  className="mt-0.5 accent-indigo-600"
+                />
+                <span className="text-xs text-gray-700 dark:text-gray-200">
+                  <strong>Apply to existing placements.</strong> Updates durations, price, cost, registrations, likelihood,
+                  and membership settings on every placement currently using this course across all scenarios.
+                </span>
+              </label>
+            )}
           </div>
 
           <footer className="px-5 py-3 border-t border-gray-200 dark:border-gray-800 flex items-center justify-end gap-2">
@@ -227,6 +329,42 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">{label}</label>
       {children}
+    </div>
+  );
+}
+
+// Input that takes weeks (with one decimal for half-weeks) but stores days under the hood.
+function WeeksField({
+  label,
+  days,
+  onChange,
+  hint,
+}: {
+  label: string;
+  days: number;
+  onChange: (days: number) => void;
+  hint?: string;
+}) {
+  const weeks = (days / 7).toFixed(days % 7 === 0 ? 0 : 1);
+  return (
+    <div>
+      <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">{label}</label>
+      <div className="flex items-center gap-1">
+        <input
+          type="number"
+          min={0}
+          step={0.5}
+          value={weeks}
+          onChange={(e) => {
+            const w = Number(e.target.value);
+            onChange(Math.round(w * 7));
+          }}
+          className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+        />
+        <span className="text-xs text-gray-500">wk</span>
+      </div>
+      {hint && <p className="text-[10px] text-gray-400 mt-1">{hint}</p>}
+      <p className="text-[10px] text-gray-400 mt-0.5">{days} day{days === 1 ? '' : 's'}</p>
     </div>
   );
 }

@@ -26,12 +26,20 @@ export async function POST(request: NextRequest) {
     const template = await prisma.courseTemplate.findUnique({ where: { id: body.courseTemplateId } });
     if (!template) return NextResponse.json({ error: 'Course template not found' }, { status: 400 });
 
+    const marketingStart = new Date(body.startDate);
+    const marketingDays = body.marketingDurationDays ?? template.marketingDurationDays;
+    const gapDays = body.gapDays ?? template.defaultGapDays;
+    const computedDeliveryStart = new Date(marketingStart);
+    computedDeliveryStart.setDate(computedDeliveryStart.getDate() + marketingDays + gapDays);
+    const deliveryStartDate = body.deliveryStartDate ? new Date(body.deliveryStartDate) : computedDeliveryStart;
+
     const placement = await prisma.coursePlacement.create({
       data: {
         scenarioId: body.scenarioId,
         courseTemplateId: body.courseTemplateId,
-        startDate: new Date(body.startDate),
-        marketingDurationDays: body.marketingDurationDays ?? template.marketingDurationDays,
+        startDate: marketingStart,
+        deliveryStartDate,
+        marketingDurationDays: marketingDays,
         deliveryDurationDays: body.deliveryDurationDays ?? template.deliveryDurationDays,
         pricePerChild: body.pricePerChild ?? template.defaultPricePerChild,
         costPerRun: body.costPerRun ?? template.defaultCostPerRun,
@@ -39,6 +47,12 @@ export async function POST(request: NextRequest) {
         likelihoodPercent: body.likelihoodPercent ?? template.defaultLikelihoodPercent,
         risks: body.risks ?? template.defaultRisks,
         notes: body.notes ?? template.defaultNotes,
+        isMembership: body.isMembership ?? template.isMembership,
+        monthlyChurnPercent: body.monthlyChurnPercent ?? template.defaultMonthlyChurnPercent,
+        retentionMonths: body.retentionMonths ?? template.defaultRetentionMonths,
+        entryMode: body.entryMode ?? 'direct',
+        trialDurationDays: body.trialDurationDays ?? 0,
+        trialToPaidConversionPercent: body.trialToPaidConversionPercent ?? 100,
       },
       include: { courseTemplate: true },
     });

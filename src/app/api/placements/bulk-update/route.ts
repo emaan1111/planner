@@ -24,6 +24,13 @@ export async function POST(request: NextRequest) {
       'likelihoodPercent',
       'risks',
       'notes',
+      'deliveryStartDate',
+      'isMembership',
+      'monthlyChurnPercent',
+      'retentionMonths',
+      'entryMode',
+      'trialDurationDays',
+      'trialToPaidConversionPercent',
     ] as const;
 
     const data: Record<string, unknown> = {};

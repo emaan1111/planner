@@ -69,6 +69,11 @@ interface DraggableCourseCardProps {
   onDelete: () => void;
 }
 
+function weeksLabel(days: number): string {
+  const w = days / 7;
+  return w === Math.floor(w) ? `${w}w` : `${w.toFixed(1)}w`;
+}
+
 function DraggableCourseCard({ course, onEdit, onDelete }: DraggableCourseCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `course-${course.id}`,
@@ -119,19 +124,27 @@ function DraggableCourseCard({ course, onEdit, onDelete }: DraggableCourseCardPr
             />
           </div>
 
-          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
             <span className="inline-flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              {course.marketingDurationDays + course.deliveryDurationDays}d
+              {weeksLabel(course.marketingDurationDays)} mkt
+              {course.defaultGapDays > 0 && <> · +{weeksLabel(course.defaultGapDays)} gap</>}
+              {' · '}
+              {weeksLabel(course.deliveryDurationDays)} run
             </span>
             <span className="inline-flex items-center gap-1">
               <DollarSign className="w-3 h-3" />
-              {course.defaultPricePerChild.toFixed(0)}/child
+              {course.defaultPricePerChild.toFixed(0)}{course.isMembership ? '/period' : '/child'}
             </span>
             <span className="inline-flex items-center gap-1">
               <Users className="w-3 h-3" />
               ~{course.defaultProjectedRegistrations}
             </span>
+            {course.isMembership && (
+              <span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                Membership
+              </span>
+            )}
           </div>
         </div>
         <div className="opacity-0 group-hover:opacity-100 flex flex-col gap-1">

@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
         description: body.description,
         marketingDurationDays: body.marketingDurationDays ?? 14,
         deliveryDurationDays: body.deliveryDurationDays ?? 7,
+        defaultGapDays: body.defaultGapDays ?? 0,
         defaultPricePerChild: body.defaultPricePerChild ?? 0,
         defaultCostPerRun: body.defaultCostPerRun ?? 0,
         defaultProjectedRegistrations: body.defaultProjectedRegistrations ?? 0,
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest) {
         defaultNotes: body.defaultNotes,
         marketingColor: body.marketingColor ?? 'purple',
         deliveryColor: body.deliveryColor ?? 'blue',
+        isMembership: body.isMembership ?? false,
+        billingPeriodDays: body.billingPeriodDays ?? 30,
+        defaultMonthlyChurnPercent: body.defaultMonthlyChurnPercent ?? 5,
+        defaultRetentionMonths: body.defaultRetentionMonths ?? 12,
       },
     });
     return NextResponse.json(course, { status: 201 });

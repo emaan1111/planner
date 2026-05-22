@@ -9,6 +9,7 @@ import { PnLPanel } from '@/components/scenarios/PnLPanel';
 import { PlacementEditor } from '@/components/scenarios/PlacementEditor';
 import { CourseEditor } from '@/components/scenarios/CourseEditor';
 import { ScenarioDndProvider } from '@/components/scenarios/ScenarioDndProvider';
+import { ScenarioUndoProvider } from '@/components/scenarios/ScenarioUndoProvider';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useScenariosStore } from '@/store/scenariosStore';
 
@@ -16,6 +17,7 @@ export default function ScenariosPage() {
   const { activeScenarioId, editingPlacementId, isCourseEditorOpen } = useScenariosStore();
 
   return (
+    <ScenarioUndoProvider>
     <ScenarioDndProvider>
       <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950 overflow-hidden">
         {/* Top bar */}
@@ -57,5 +59,6 @@ export default function ScenariosPage() {
         <ToastContainer />
       </div>
     </ScenarioDndProvider>
+    </ScenarioUndoProvider>
   );
 }

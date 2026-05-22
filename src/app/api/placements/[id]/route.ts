@@ -9,6 +9,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       where: { id },
       data: {
         startDate: body.startDate ? new Date(body.startDate) : undefined,
+        deliveryStartDate: body.deliveryStartDate ? new Date(body.deliveryStartDate) : undefined,
         marketingDurationDays: body.marketingDurationDays,
         deliveryDurationDays: body.deliveryDurationDays,
         pricePerChild: body.pricePerChild,
@@ -17,6 +18,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         likelihoodPercent: body.likelihoodPercent,
         risks: body.risks,
         notes: body.notes,
+        isMembership: body.isMembership,
+        monthlyChurnPercent: body.monthlyChurnPercent,
+        retentionMonths: body.retentionMonths,
+        entryMode: body.entryMode,
+        trialDurationDays: body.trialDurationDays,
+        trialToPaidConversionPercent: body.trialToPaidConversionPercent,
       },
       include: { courseTemplate: true },
     });

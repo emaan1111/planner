@@ -4,6 +4,7 @@ import {
   ScenarioFolder,
   Scenario,
   CoursePlacement,
+  ScenarioEvent,
 } from '@/types/scenarios';
 import { toast } from '@/components/ui/Toast';
 
@@ -247,10 +248,11 @@ export const placementKeys = {
   forScenario: (scenarioId: string) => ['placements', { scenarioId }] as const,
 };
 
-function revivePlacement(raw: CoursePlacement & { createdAt: string | Date; updatedAt: string | Date; startDate: string | Date }) {
+function revivePlacement(raw: CoursePlacement & { createdAt: string | Date; updatedAt: string | Date; startDate: string | Date; deliveryStartDate: string | Date }) {
   return {
     ...raw,
     startDate: new Date(raw.startDate),
+    deliveryStartDate: new Date(raw.deliveryStartDate),
     createdAt: new Date(raw.createdAt),
     updatedAt: new Date(raw.updatedAt),
     courseTemplate: raw.courseTemplate ? reviveDates(raw.courseTemplate) : undefined,
@@ -279,17 +281,32 @@ export function useCreatePlacement() {
       scenarioId: string;
       courseTemplateId: string;
       startDate: Date;
+      deliveryStartDate?: Date;
+      gapDays?: number;
       marketingDurationDays?: number;
       deliveryDurationDays?: number;
       pricePerChild?: number;
       costPerRun?: number;
       projectedRegistrations?: number;
       likelihoodPercent?: number;
+      risks?: string;
+      notes?: string;
+      isMembership?: boolean;
+      monthlyChurnPercent?: number;
+      retentionMonths?: number;
+      entryMode?: 'direct' | 'trial-to-paid';
+      trialDurationDays?: number;
+      trialToPaidConversionPercent?: number;
     }) => {
+      const payload: Record<string, unknown> = {
+        ...input,
+        startDate: input.startDate.toISOString(),
+      };
+      if (input.deliveryStartDate) payload.deliveryStartDate = input.deliveryStartDate.toISOString();
       const res = await fetch('/api/placements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...input, startDate: input.startDate.toISOString() }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Failed to create placement');
       return revivePlacement(await res.json());
@@ -305,6 +322,7 @@ export function useUpdatePlacement() {
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<CoursePlacement> }) => {
       const payload: Record<string, unknown> = { ...updates };
       if (updates.startDate instanceof Date) payload.startDate = updates.startDate.toISOString();
+      if (updates.deliveryStartDate instanceof Date) payload.deliveryStartDate = updates.deliveryStartDate.toISOString();
       const res = await fetch(`/api/placements/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -351,5 +369,92 @@ export function useBulkUpdatePlacements() {
     },
     onError: (e) => toast.error(err(e, 'Failed to apply across all calendars')),
     onSettled: () => qc.invalidateQueries({ queryKey: placementKeys.all }),
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Scenario events (holidays, key dates, ad-hoc notes pinned to a scenario)
+// -----------------------------------------------------------------------------
+
+export const scenarioEventKeys = {
+  all: ['scenario-events'] as const,
+  forScenario: (scenarioId: string) => ['scenario-events', { scenarioId }] as const,
+};
+
+function reviveScenarioEvent(raw: ScenarioEvent & { createdAt: string | Date; updatedAt: string | Date; startDate: string | Date; endDate: string | Date }): ScenarioEvent {
+  return {
+    ...raw,
+    startDate: new Date(raw.startDate),
+    endDate: new Date(raw.endDate),
+    createdAt: new Date(raw.createdAt),
+    updatedAt: new Date(raw.updatedAt),
+  } as ScenarioEvent;
+}
+
+async function fetchScenarioEvents(scenarioId?: string): Promise<ScenarioEvent[]> {
+  const url = scenarioId ? `/api/scenario-events?scenarioId=${scenarioId}` : '/api/scenario-events';
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch scenario events');
+  return (await res.json()).map(reviveScenarioEvent);
+}
+
+export function useScenarioEvents(scenarioId?: string) {
+  return useQuery({
+    queryKey: scenarioId ? scenarioEventKeys.forScenario(scenarioId) : scenarioEventKeys.all,
+    queryFn: () => fetchScenarioEvents(scenarioId),
+    enabled: scenarioId !== undefined,
+  });
+}
+
+export function useCreateScenarioEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { scenarioId: string; title: string; startDate: Date; endDate?: Date; color?: string; kind?: ScenarioEvent['kind']; notes?: string }) => {
+      const res = await fetch('/api/scenario-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...input,
+          startDate: input.startDate.toISOString(),
+          endDate: (input.endDate ?? input.startDate).toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to create scenario event');
+      return reviveScenarioEvent(await res.json());
+    },
+    onError: (e) => toast.error(err(e, 'Failed to create event')),
+    onSettled: () => qc.invalidateQueries({ queryKey: scenarioEventKeys.all }),
+  });
+}
+
+export function useUpdateScenarioEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ScenarioEvent> }) => {
+      const payload: Record<string, unknown> = { ...updates };
+      if (updates.startDate instanceof Date) payload.startDate = updates.startDate.toISOString();
+      if (updates.endDate instanceof Date) payload.endDate = updates.endDate.toISOString();
+      const res = await fetch(`/api/scenario-events/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Failed to update scenario event');
+      return reviveScenarioEvent(await res.json());
+    },
+    onError: (e) => toast.error(err(e, 'Failed to update event')),
+    onSettled: () => qc.invalidateQueries({ queryKey: scenarioEventKeys.all }),
+  });
+}
+
+export function useDeleteScenarioEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/scenario-events/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete scenario event');
+    },
+    onError: (e) => toast.error(err(e, 'Failed to delete event')),
+    onSettled: () => qc.invalidateQueries({ queryKey: scenarioEventKeys.all }),
   });
 }

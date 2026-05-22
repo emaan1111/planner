@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { usePlacements, useScenarios } from '@/hooks/useScenariosQuery';
-import { computePlacementMetrics, CoursePlacement } from '@/types/scenarios';
+import { computePlacementMetrics, computeRevenue, CoursePlacement } from '@/types/scenarios';
 import { useScenariosStore } from '@/store/scenariosStore';
-import { TrendingUp, DollarSign, Activity, AlertTriangle } from 'lucide-react';
+import { TrendingUp, DollarSign, Activity, AlertTriangle, Maximize2 } from 'lucide-react';
 import clsx from 'clsx';
+import { DetailedPnLReport } from './DetailedPnLReport';
 
 function aggregate(placements: CoursePlacement[]) {
   let revenue = 0;
@@ -14,7 +15,7 @@ function aggregate(placements: CoursePlacement[]) {
   let expectedValue = 0;
   for (const p of placements) {
     const m = computePlacementMetrics(p);
-    revenue += m.revenue;
+    revenue += computeRevenue(p);
     cost += m.cost;
     profit += m.profit;
     expectedValue += m.expectedValue;
@@ -31,6 +32,7 @@ export function PnLPanel() {
   const { activeScenarioId } = useScenariosStore();
   const { data: placements = [] } = usePlacements(activeScenarioId ?? undefined);
   const { data: scenarios = [] } = useScenarios();
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   const totals = useMemo(() => aggregate(placements), [placements]);
 
@@ -57,11 +59,20 @@ export function PnLPanel() {
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
-        <Activity className="w-4 h-4 text-gray-500" />
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-          {activeScenario ? `P&L · ${activeScenario.name}` : 'P&L'}
-        </h2>
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-gray-500" />
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            {activeScenario ? `P&L · ${activeScenario.name}` : 'P&L'}
+          </h2>
+        </div>
+        <button
+          onClick={() => setIsReportOpen(true)}
+          title="Open detailed report"
+          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <div className="p-3 grid grid-cols-2 gap-2 border-b border-gray-200 dark:border-gray-800">
@@ -104,7 +115,17 @@ export function PnLPanel() {
             <p className="text-xs text-gray-400 italic">No scenarios to compare.</p>
           )}
         </div>
+
+        <button
+          onClick={() => setIsReportOpen(true)}
+          className="w-full mt-4 text-xs px-3 py-2 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-200 font-medium inline-flex items-center justify-center gap-2"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+          Open detailed report
+        </button>
       </div>
+
+      <DetailedPnLReport open={isReportOpen} onClose={() => setIsReportOpen(false)} />
     </div>
   );
 }
