@@ -12,6 +12,7 @@ import {
   isSameDay,
   format,
   addMonths,
+  parseISO,
 } from 'date-fns';
 import { useScenariosStore } from '@/store/scenariosStore';
 import {
@@ -31,6 +32,7 @@ import {
   Calendar as CalendarIcon,
   Trash2,
   Plus,
+  AlertTriangle,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -54,6 +56,7 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
   const createEvent = useCreateScenarioEvent();
 
   const [viewMode, setViewMode] = useState<ScenarioViewMode>('month');
+  const [eventDraft, setEventDraft] = useState<{ date: Date } | null>(null);
 
   const monthDate = new Date(currentMonth);
 
@@ -75,16 +78,7 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
 
   const handleAddEvent = (date: Date) => {
     if (!scenarioId) return;
-    const title = prompt('Event title (e.g. Eid, school holiday, key reminder):');
-    if (!title || !title.trim()) return;
-    createEvent.mutate({
-      scenarioId,
-      title: title.trim(),
-      startDate: date,
-      endDate: date,
-      kind: 'note',
-      color: 'amber',
-    });
+    setEventDraft({ date });
   };
 
   const periodLabel = (() => {
@@ -161,6 +155,214 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
             onAddEvent={handleAddEvent}
           />
         ))}
+      </div>
+
+      {eventDraft && scenarioId && (
+        <NewEventDialog
+          initialDate={eventDraft.date}
+          onClose={() => setEventDraft(null)}
+          onSubmit={(data) => {
+            createEvent.mutate({
+              scenarioId,
+              title: data.title,
+              startDate: data.startDate,
+              endDate: data.endDate,
+              kind: data.kind,
+              color: data.color,
+              notes: data.notes || undefined,
+            });
+            setEventDraft(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const EVENT_COLORS: EventColor[] = ['amber', 'red', 'orange', 'yellow', 'green', 'teal', 'sky', 'blue', 'indigo', 'violet', 'purple', 'pink'];
+const EVENT_KINDS: { id: ScenarioEvent['kind']; label: string; icon: string }[] = [
+  { id: 'note', label: 'Note', icon: '📌' },
+  { id: 'holiday', label: 'Holiday', icon: '🌴' },
+  { id: 'milestone', label: 'Milestone', icon: '🏁' },
+];
+
+function NewEventDialog({
+  initialDate,
+  onClose,
+  onSubmit,
+}: {
+  initialDate: Date;
+  onClose: () => void;
+  onSubmit: (data: {
+    title: string;
+    startDate: Date;
+    endDate: Date;
+    kind: ScenarioEvent['kind'];
+    color: EventColor;
+    notes: string;
+  }) => void;
+}) {
+  const initial = format(initialDate, 'yyyy-MM-dd');
+  const [title, setTitle] = useState('');
+  const [startDate, setStartDate] = useState(initial);
+  const [endDate, setEndDate] = useState(initial);
+  const [singleDay, setSingleDay] = useState(true);
+  const [kind, setKind] = useState<ScenarioEvent['kind']>('note');
+  const [color, setColor] = useState<EventColor>('amber');
+  const [notes, setNotes] = useState('');
+
+  const canSubmit = title.trim().length > 0 && startDate && (singleDay || endDate >= startDate);
+
+  const submit = () => {
+    if (!canSubmit) return;
+    onSubmit({
+      title: title.trim(),
+      startDate: parseISO(startDate),
+      endDate: parseISO(singleDay ? startDate : endDate),
+      kind,
+      color,
+      notes,
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md border border-gray-200 dark:border-gray-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Add event</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </header>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">Title</label>
+            <input
+              type="text"
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canSubmit) submit();
+              }}
+              placeholder="e.g. Eid, school holiday, key reminder"
+              className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+            />
+          </div>
+
+          <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={singleDay}
+              onChange={(e) => {
+                const s = e.target.checked;
+                setSingleDay(s);
+                if (s) setEndDate(startDate);
+              }}
+              className="accent-indigo-600"
+            />
+            Single-day event
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">
+                {singleDay ? 'Date' : 'Start date'}
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (singleDay || e.target.value > endDate) setEndDate(e.target.value);
+                }}
+                className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+              />
+            </div>
+            {!singleDay && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">End date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">Kind</label>
+            <div className="flex gap-1">
+              {EVENT_KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  onClick={() => setKind(k.id)}
+                  className={clsx(
+                    'flex-1 px-2 py-1.5 rounded text-xs border transition-colors',
+                    kind === k.id
+                      ? 'bg-indigo-50 dark:bg-indigo-950 border-indigo-400 text-indigo-700 dark:text-indigo-200'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
+                  )}
+                >
+                  <span className="mr-1">{k.icon}</span>{k.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">Color</label>
+            <div className="flex flex-wrap gap-1">
+              {EVENT_COLORS.map((c) => {
+                const cls = colorClasses[c] ?? colorClasses.amber;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setColor(c)}
+                    className={clsx(
+                      'w-6 h-6 rounded-full transition-transform',
+                      cls.bg,
+                      color === c && 'ring-2 ring-offset-1 ring-gray-700 dark:ring-white scale-110',
+                    )}
+                    title={c}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+            />
+          </div>
+        </div>
+        <footer className="px-5 py-3 border-t border-gray-200 dark:border-gray-800 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Add event
+          </button>
+        </footer>
       </div>
     </div>
   );
@@ -428,7 +630,15 @@ function PlacementSegment({
     : ('indigo' as EventColor);
   const cls = colorClasses[color as EventColor] ?? colorClasses.indigo;
   const courseName = template?.name ?? 'Course';
-  const label = kind === 'marketing' ? `📣 ${courseName}` : `▶ ${courseName}`;
+  const isMarketing = kind === 'marketing';
+  const isIncomplete =
+    (placement.costPerRun ?? 0) <= 0 || (placement.projectedRegistrations ?? 0) <= 0;
+  const missingFields: string[] = [];
+  if ((placement.costPerRun ?? 0) <= 0) missingFields.push('cost');
+  if ((placement.projectedRegistrations ?? 0) <= 0) missingFields.push('registrations');
+  const incompleteHint = isIncomplete
+    ? ` — incomplete: missing ${missingFields.join(' & ')} (no projection)`
+    : '';
   return (
     <div
       onClick={(e) => {
@@ -438,15 +648,37 @@ function PlacementSegment({
       className={clsx(
         'truncate cursor-pointer group/seg flex items-center gap-1',
         compact ? 'text-[8px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5',
-        cls.bg,
-        'text-white',
+        isMarketing
+          ? clsx(cls.bg, 'text-white font-semibold border-y border-y-black/20 shadow-sm')
+          : clsx(cls.light, cls.text, 'border', cls.border, 'border-dashed opacity-90'),
         isStart && 'rounded-l',
         isEnd && 'rounded-r',
-        kind === 'marketing' && 'opacity-85',
       )}
-      title={`${kind === 'marketing' ? 'Marketing' : 'Delivery'} – ${courseName}`}
+      title={`${isMarketing ? 'Marketing' : 'Delivery'} – ${courseName}${incompleteHint}`}
     >
-      <span className="truncate flex-1">{label}</span>
+      {isMarketing && isStart && (
+        <span
+          className={clsx(
+            'inline-flex items-center font-bold tracking-wide bg-black/25 rounded',
+            compact ? 'text-[7px] px-0.5' : 'text-[8px] px-1 py-px',
+          )}
+        >
+          MKT
+        </span>
+      )}
+      <span className="truncate flex-1">
+        {isMarketing ? `📣 ${courseName}` : `▶ ${courseName}`}
+      </span>
+      {isIncomplete && isStart && (
+        <AlertTriangle
+          className={clsx(
+            'flex-shrink-0 text-red-500 drop-shadow',
+            compact ? 'w-2 h-2' : 'w-3 h-3',
+            isMarketing && 'text-yellow-300',
+          )}
+          aria-label="Missing cost or projected registrations"
+        />
+      )}
       {isStart && !compact && (
         <button
           onClick={(e) => {

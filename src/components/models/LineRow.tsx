@@ -37,10 +37,10 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
 
   return (
     <div className="border border-gray-200 dark:border-gray-800 rounded">
-      <div className="flex items-center gap-2 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-2 px-2 py-1.5">
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="p-0.5 text-gray-400 hover:text-gray-700"
+          className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
           title={expanded ? 'Collapse' : 'Expand'}
         >
           {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -48,13 +48,13 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
         <input
           value={line.name}
           onChange={(e) => update({ name: e.target.value })}
-          className="flex-1 min-w-0 px-2 py-1 text-sm rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-700 focus:border-indigo-300 bg-transparent"
+          className="flex-1 basis-full sm:basis-auto min-w-0 px-2 py-1 text-sm rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-700 focus:border-indigo-300 bg-transparent"
         />
         <select
           value={line.kind}
           onChange={(e) => update({ kind: e.target.value as LineKind })}
           className={clsx(
-            'text-xs px-2 py-1 rounded border',
+            'text-xs px-2 py-1 rounded border flex-shrink-0',
             line.kind === 'revenue'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
               : 'border-rose-200 bg-rose-50 text-rose-700',
@@ -66,7 +66,7 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
         <select
           value={line.inputMode}
           onChange={(e) => update({ inputMode: e.target.value as InputMode })}
-          className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+          className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0"
         >
           {(Object.keys(MODE_LABEL) as InputMode[]).map((m) => (
             <option key={m} value={m}>
@@ -78,7 +78,7 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
           value={line.category ?? ''}
           onChange={(e) => update({ category: e.target.value })}
           placeholder="category"
-          className="w-24 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+          className="flex-1 sm:flex-none sm:w-24 min-w-0 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
         />
         <button
           onClick={() => {
@@ -104,7 +104,7 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
             });
             deleteLine.mutate(line.id);
           }}
-          className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
+          className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 flex-shrink-0"
           title="Remove (cmd+Z to undo)"
         >
           <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -113,7 +113,7 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
 
       {/* Mode-specific inputs */}
       <div className="px-2 pb-2">
-        <div className="grid grid-cols-4 gap-2 mt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mt-1">
           {line.inputMode === 'flat' && (
             <NumberField
               label="Amount per month"
@@ -194,7 +194,7 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
           {line.inputMode === 'manual' && (
             <button
               onClick={() => setExpanded(true)}
-              className="text-xs text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1 col-span-4"
+              className="text-xs text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1 col-span-1 sm:col-span-2 md:col-span-4"
             >
               <Edit3 className="w-3 h-3" /> Expand to edit per-month values
             </button>

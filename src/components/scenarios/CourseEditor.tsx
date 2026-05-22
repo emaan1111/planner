@@ -142,18 +142,18 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
             </Field>
 
             <div className="grid grid-cols-3 gap-3">
-              <WeeksField
+              <DaysField
                 label="Marketing duration"
                 days={form.marketingDurationDays ?? 0}
                 onChange={(d) => setForm({ ...form, marketingDurationDays: d })}
               />
-              <WeeksField
+              <DaysField
                 label="Gap before delivery"
                 days={form.defaultGapDays ?? 0}
                 onChange={(d) => setForm({ ...form, defaultGapDays: d })}
-                hint="weeks between marketing end & delivery start"
+                hint="days between marketing end & delivery start"
               />
-              <WeeksField
+              <DaysField
                 label="Delivery duration"
                 days={form.deliveryDurationDays ?? 1}
                 onChange={(d) => setForm({ ...form, deliveryDurationDays: d })}
@@ -333,8 +333,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// Input that takes weeks (with one decimal for half-weeks) but stores days under the hood.
-function WeeksField({
+function DaysField({
   label,
   days,
   onChange,
@@ -345,7 +344,6 @@ function WeeksField({
   onChange: (days: number) => void;
   hint?: string;
 }) {
-  const weeks = (days / 7).toFixed(days % 7 === 0 ? 0 : 1);
   return (
     <div>
       <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">{label}</label>
@@ -353,18 +351,14 @@ function WeeksField({
         <input
           type="number"
           min={0}
-          step={0.5}
-          value={weeks}
-          onChange={(e) => {
-            const w = Number(e.target.value);
-            onChange(Math.round(w * 7));
-          }}
+          step={1}
+          value={days}
+          onChange={(e) => onChange(Math.max(0, Math.round(Number(e.target.value))))}
           className="w-full px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
         />
-        <span className="text-xs text-gray-500">wk</span>
+        <span className="text-xs text-gray-500">d</span>
       </div>
       {hint && <p className="text-[10px] text-gray-400 mt-1">{hint}</p>}
-      <p className="text-[10px] text-gray-400 mt-0.5">{days} day{days === 1 ? '' : 's'}</p>
     </div>
   );
 }

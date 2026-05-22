@@ -69,9 +69,8 @@ interface DraggableCourseCardProps {
   onDelete: () => void;
 }
 
-function weeksLabel(days: number): string {
-  const w = days / 7;
-  return w === Math.floor(w) ? `${w}w` : `${w.toFixed(1)}w`;
+function daysLabel(days: number): string {
+  return `${days}d`;
 }
 
 function DraggableCourseCard({ course, onEdit, onDelete }: DraggableCourseCardProps) {
@@ -127,10 +126,10 @@ function DraggableCourseCard({ course, onEdit, onDelete }: DraggableCourseCardPr
           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
             <span className="inline-flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              {weeksLabel(course.marketingDurationDays)} mkt
-              {course.defaultGapDays > 0 && <> · +{weeksLabel(course.defaultGapDays)} gap</>}
+              {daysLabel(course.marketingDurationDays)} mkt
+              {course.defaultGapDays > 0 && <> · +{daysLabel(course.defaultGapDays)} gap</>}
               {' · '}
-              {weeksLabel(course.deliveryDurationDays)} run
+              {daysLabel(course.deliveryDurationDays)} run
             </span>
             <span className="inline-flex items-center gap-1">
               <DollarSign className="w-3 h-3" />

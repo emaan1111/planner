@@ -5,16 +5,23 @@ import { ComputedModel } from '@/types/models';
 
 interface ModelChartsProps {
   computed: ComputedModel;
+  /** Number of months to show. 0 = full horizon. */
+  windowMonths?: number;
 }
 
-export function ModelCharts({ computed }: ModelChartsProps) {
+export function ModelCharts({ computed, windowMonths = 0 }: ModelChartsProps) {
+  const N = computed.monthLabels.length;
+  const w = windowMonths > 0 ? Math.min(windowMonths, N) : N;
+  const profit = computed.profit.slice(0, w);
+  const cash = computed.cumulativeCash.slice(0, w);
+  const labels = computed.monthLabels.slice(0, w);
   return (
     <div className="space-y-3">
       <ChartCard title="Profit per month">
-        <LineChart values={computed.profit} labels={computed.monthLabels} colorPos="#10b981" colorNeg="#e11d48" />
+        <LineChart values={profit} labels={labels} colorPos="#10b981" colorNeg="#e11d48" />
       </ChartCard>
       <ChartCard title="Cash balance">
-        <LineChart values={computed.cumulativeCash} labels={computed.monthLabels} colorPos="#6366f1" colorNeg="#e11d48" filled />
+        <LineChart values={cash} labels={labels} colorPos="#6366f1" colorNeg="#e11d48" filled />
       </ChartCard>
       <ChartCard title="Revenue mix">
         <Donut data={computed.revenueByCategory} />

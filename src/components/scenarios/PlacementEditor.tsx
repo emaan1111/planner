@@ -155,14 +155,14 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
               </Field>
             </div>
 
-            {/* Durations in weeks */}
+            {/* Durations in days */}
             <div className="grid grid-cols-2 gap-3">
-              <WeeksDial
+              <DaysDial
                 label="Marketing duration"
                 days={form.marketingDurationDays ?? 0}
                 onChange={(d) => setForm({ ...form, marketingDurationDays: d })}
               />
-              <WeeksDial
+              <DaysDial
                 label="Delivery duration"
                 days={form.deliveryDurationDays ?? 1}
                 onChange={(d) => setForm({ ...form, deliveryDurationDays: d })}
@@ -435,7 +435,7 @@ function DialSlider({
   );
 }
 
-function WeeksDial({
+function DaysDial({
   label,
   days,
   onChange,
@@ -444,7 +444,7 @@ function WeeksDial({
   days: number;
   onChange: (days: number) => void;
 }) {
-  const weeks = days / 7;
+  const sliderMax = Math.max(180, days + 30);
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
@@ -453,24 +453,23 @@ function WeeksDial({
           <input
             type="number"
             min={0}
-            step={0.5}
-            value={Number.isFinite(weeks) ? weeks.toFixed(weeks % 1 === 0 ? 0 : 1) : 0}
-            onChange={(e) => onChange(Math.round(Number(e.target.value) * 7))}
+            step={1}
+            value={days}
+            onChange={(e) => onChange(Math.max(0, Math.round(Number(e.target.value))))}
             className="w-20 text-right text-sm font-semibold bg-transparent border-b border-gray-200 dark:border-gray-700 px-1"
           />
-          <span className="text-xs text-gray-500">wk</span>
+          <span className="text-xs text-gray-500">d</span>
         </div>
       </div>
       <input
         type="range"
         min={0}
-        max={26}
-        step={0.5}
-        value={weeks}
-        onChange={(e) => onChange(Math.round(Number(e.target.value) * 7))}
+        max={sliderMax}
+        step={1}
+        value={days}
+        onChange={(e) => onChange(Math.round(Number(e.target.value)))}
         className="w-full accent-indigo-600"
       />
-      <p className="text-[10px] text-gray-400 mt-0.5">{days} day{days === 1 ? '' : 's'}</p>
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   useUpdateModel,
 } from '@/hooks/useModelsQuery';
 import { usePlacements } from '@/hooks/useScenariosQuery';
-import { useModelsStore } from '@/store/modelsStore';
+import { useModelsStore, ProjectionWindow } from '@/store/modelsStore';
 import { useUndoStore } from '@/components/scenarios/ScenarioUndoProvider';
 import { computeModel, CaseType, ModelLine } from '@/types/models';
 import { LineRow } from './LineRow';
@@ -22,7 +22,13 @@ import { exportModelToCSV, downloadCSV } from './modelExport';
 import { Download, Plus, BarChart3 } from 'lucide-react';
 
 export function ModelEditor() {
-  const { activeModelId } = useModelsStore();
+  const {
+    activeModelId,
+    projectionWindow,
+    setProjectionWindow,
+    rightPanelOpen,
+    setRightPanelOpen,
+  } = useModelsStore();
   const { data: models = [] } = useModels();
   const model = models.find((m) => m.id === activeModelId);
   const { data: lines = [] } = useModelLines(activeModelId ?? undefined);
@@ -67,11 +73,11 @@ export function ModelEditor() {
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex overflow-hidden min-w-0">
       {/* Center editor */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 min-w-0">
         {/* Meta */}
-        <section className="grid grid-cols-6 gap-2 items-end p-3 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 items-end p-3 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
           <div className="col-span-2">
             <label className="text-[10px] uppercase tracking-wide text-gray-400">Model</label>
             <input
@@ -128,7 +134,7 @@ export function ModelEditor() {
               className="w-full px-2 py-1 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-2 sm:col-span-1 md:col-span-2">
             <label className="text-[10px] uppercase tracking-wide text-gray-400">Tax % of profit</label>
             <input
               type="number"
@@ -139,7 +145,7 @@ export function ModelEditor() {
               className="w-full px-2 py-1 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             />
           </div>
-          <div className="col-span-3">
+          <div className="col-span-2 sm:col-span-2 md:col-span-3">
             <label className="text-[10px] uppercase tracking-wide text-gray-400">Notes</label>
             <input
               value={model.notes ?? ''}
@@ -150,7 +156,7 @@ export function ModelEditor() {
           </div>
           <button
             onClick={handleExport}
-            className="col-span-1 inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30"
+            className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1 text-xs px-3 py-1.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30"
           >
             <Download className="w-3.5 h-3.5" />
             CSV
@@ -247,15 +253,80 @@ export function ModelEditor() {
         )}
       </div>
 
-      {/* Right rail: totals + charts */}
-      <aside className="w-80 flex-shrink-0 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto p-3 space-y-3">
+      {/* Right rail (desktop) */}
+      <aside className="hidden md:flex md:flex-col w-80 flex-shrink-0 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto p-3 space-y-3">
         {computed && (
           <>
-            <TotalsPanel model={model} computed={computed} />
-            <ModelCharts computed={computed} />
+            <WindowToggle value={projectionWindow} onChange={setProjectionWindow} horizonMonths={model.horizonMonths} />
+            <TotalsPanel model={model} computed={computed} windowMonths={projectionWindow} />
+            <ModelCharts computed={computed} windowMonths={projectionWindow} />
           </>
         )}
       </aside>
+
+      {/* Right panel as bottom sheet (mobile) */}
+      {rightPanelOpen && (
+        <div className="md:hidden fixed inset-0 z-40 flex flex-col" onClick={() => setRightPanelOpen(false)}>
+          <div className="flex-1 bg-gray-950/40 backdrop-blur-[1px]" />
+          <div
+            className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 rounded-t-xl shadow-2xl max-h-[85vh] overflow-y-auto p-3 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-2 -mt-1">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Totals & charts</h3>
+              <button
+                onClick={() => setRightPanelOpen(false)}
+                className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                Close
+              </button>
+            </div>
+            {computed && (
+              <>
+                <WindowToggle value={projectionWindow} onChange={setProjectionWindow} horizonMonths={model.horizonMonths} />
+                <TotalsPanel model={model} computed={computed} windowMonths={projectionWindow} />
+                <ModelCharts computed={computed} windowMonths={projectionWindow} />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WindowToggle({
+  value,
+  onChange,
+  horizonMonths,
+}: {
+  value: ProjectionWindow;
+  onChange: (w: ProjectionWindow) => void;
+  horizonMonths: number;
+}) {
+  const opts: { v: ProjectionWindow; label: string }[] = [
+    { v: 3, label: '3 mo' },
+    { v: 6, label: '6 mo' },
+    { v: 12, label: '1 yr' },
+    { v: 0, label: `All (${horizonMonths})` },
+  ];
+  return (
+    <div className="flex items-center gap-1 p-1 rounded border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+      <span className="text-[10px] uppercase tracking-wide text-gray-400 px-1">View</span>
+      {opts.map((o) => (
+        <button
+          key={o.v}
+          onClick={() => onChange(o.v)}
+          className={
+            'text-[11px] px-2 py-0.5 rounded ' +
+            (value === o.v
+              ? 'bg-indigo-600 text-white'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700')
+          }
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

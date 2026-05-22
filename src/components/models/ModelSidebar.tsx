@@ -10,7 +10,7 @@ import {
 } from '@/hooks/useModelsQuery';
 import { useModelsStore } from '@/store/modelsStore';
 import { CaseType } from '@/types/models';
-import { Plus, Copy, Trash2, Pencil, BarChart3, GitCompareArrows } from 'lucide-react';
+import { Plus, Copy, Trash2, Pencil, BarChart3, GitCompareArrows, X } from 'lucide-react';
 import clsx from 'clsx';
 
 const CASE_LABELS: Record<CaseType, string> = {
@@ -33,7 +33,15 @@ export function ModelSidebar() {
   const updateModel = useUpdateModel();
   const deleteModel = useDeleteModel();
   const duplicateModel = useDuplicateModel();
-  const { activeModelId, setActiveModel, compareIds, toggleCompare, clearCompare } = useModelsStore();
+  const {
+    activeModelId,
+    setActiveModel,
+    compareIds,
+    toggleCompare,
+    clearCompare,
+    sidebarOpen,
+    setSidebarOpen,
+  } = useModelsStore();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -62,19 +70,47 @@ export function ModelSidebar() {
   };
 
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col">
+    <>
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="md:hidden fixed inset-0 z-30 bg-gray-950/40 backdrop-blur-[1px]"
+          aria-hidden
+        />
+      )}
+      <aside
+        className={clsx(
+          'flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900',
+          // Mobile: slide-over drawer
+          'fixed inset-y-0 left-0 z-40 w-[82vw] max-w-xs transform transition-transform duration-200 ease-out shadow-xl',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          // Desktop: static rail
+          'md:relative md:translate-x-0 md:shadow-none md:w-64 md:flex-shrink-0',
+        )}
+      >
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-indigo-500" />
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Models</h2>
         </div>
-        <button
-          onClick={() => handleNew()}
-          title="New model"
-          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handleNew()}
+            title="New model"
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            title="Close"
+            aria-label="Close sidebar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Case-type quick add */}
@@ -135,7 +171,7 @@ export function ModelSidebar() {
                 ) : (
                   <span className="flex-1 truncate">{m.name}</span>
                 )}
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+                <div className="md:opacity-0 md:group-hover:opacity-100 flex items-center gap-0.5">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -156,7 +192,7 @@ export function ModelSidebar() {
                       setRenameValue(m.name);
                     }}
                     title="Rename"
-                    className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
                   >
                     <Pencil className="w-3 h-3 text-gray-500" />
                   </button>
@@ -166,7 +202,7 @@ export function ModelSidebar() {
                       duplicateModel.mutate({ id: m.id });
                     }}
                     title="Duplicate"
-                    className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
                   >
                     <Copy className="w-3 h-3 text-gray-500" />
                   </button>
@@ -176,7 +212,7 @@ export function ModelSidebar() {
                       if (confirm(`Delete model "${m.name}"?`)) deleteModel.mutate(m.id);
                     }}
                     title="Delete"
-                    className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
+                    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
                   >
                     <Trash2 className="w-3 h-3 text-red-500" />
                   </button>
@@ -198,5 +234,6 @@ export function ModelSidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }
