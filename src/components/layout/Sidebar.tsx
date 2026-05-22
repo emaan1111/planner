@@ -197,6 +197,16 @@ export function Sidebar() {
             <span className="ml-auto text-xs text-gray-400">{events.length}</span>
           </Link>
 
+          {/* CFO Scenarios Link */}
+          <Link
+            href="/scenarios"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors mt-1 font-medium"
+          >
+            <Star className="w-3.5 h-3.5" />
+            <span>CFO Scenarios</span>
+            <ExternalLink className="w-3 h-3 ml-auto opacity-60" />
+          </Link>
+
           {/* Plan Type Filters */}
           <div className="mt-6">
             <motion.button

@@ -137,3 +137,80 @@ model AIMessage {
   content    String
   createdAt  DateTime @default(now())
 }
+
+// ----------------------------------------------------------------------------
+// CFO Scenarios feature: course-based planning calendars with P&L projections
+// ----------------------------------------------------------------------------
+
+// Reusable course definition that can be dropped onto any scenario calendar
+model CourseTemplate {
+  id                            String   @id @default(cuid())
+  name                          String   @unique
+  description                   String?
+  marketingDurationDays         Int      @default(14)
+  deliveryDurationDays          Int      @default(7)
+  defaultPricePerChild          Float    @default(0)
+  defaultCostPerRun             Float    @default(0)
+  defaultProjectedRegistrations Int      @default(0)
+  defaultLikelihoodPercent      Int      @default(70)
+  defaultRisks                  String?
+  defaultNotes                  String?
+  marketingColor                String   @default("purple")
+  deliveryColor                 String   @default("blue")
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+
+  placements CoursePlacement[]
+}
+
+// Folder grouping for scenarios
+model ScenarioFolder {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("indigo")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scenarios Scenario[]
+}
+
+// A planning calendar (one named scenario)
+model Scenario {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  folderId    String?
+  color       String   @default("indigo")
+  notes       String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  folder     ScenarioFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  placements CoursePlacement[]
+}
+
+// A course placed on a scenario calendar — carries per-scenario dials
+model CoursePlacement {
+  id                     String   @id @default(cuid())
+  scenarioId             String
+  courseTemplateId       String
+  startDate              DateTime
+  marketingDurationDays  Int
+  deliveryDurationDays   Int
+  pricePerChild          Float
+  costPerRun             Float
+  projectedRegistrations Int
+  likelihoodPercent      Int      @default(70)
+  risks                  String?
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  scenario       Scenario       @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  courseTemplate CourseTemplate @relation(fields: [courseTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([scenarioId])
+  @@index([courseTemplateId])
+}
