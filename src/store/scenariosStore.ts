@@ -9,6 +9,8 @@ interface ScenariosUIState {
   editingCourseId: string | null;
   isCourseEditorOpen: boolean;
   isNewScenarioOpen: boolean;
+  sidebarOpen: boolean; // mobile scenarios drawer
+  rightPanelOpen: boolean; // mobile library + P&L drawer
 
   setActiveScenario: (id: string | null) => void;
   setActiveFolder: (id: string | null) => void;
@@ -25,6 +27,9 @@ interface ScenariosUIState {
 
   openNewScenario: () => void;
   closeNewScenario: () => void;
+
+  setSidebarOpen: (open: boolean) => void;
+  setRightPanelOpen: (open: boolean) => void;
 }
 
 function startOfMonth(d: Date): Date {
@@ -41,8 +46,10 @@ export const useScenariosStore = create<ScenariosUIState>()(
       editingCourseId: null,
       isCourseEditorOpen: false,
       isNewScenarioOpen: false,
+      sidebarOpen: false,
+      rightPanelOpen: false,
 
-      setActiveScenario: (id) => set({ activeScenarioId: id }),
+      setActiveScenario: (id) => set({ activeScenarioId: id, sidebarOpen: false }),
       setActiveFolder: (id) => set({ activeFolderId: id }),
       setCurrentMonth: (date) => set({ currentMonth: startOfMonth(date).toISOString() }),
       goToPreviousMonth: () => {
@@ -65,6 +72,9 @@ export const useScenariosStore = create<ScenariosUIState>()(
 
       openNewScenario: () => set({ isNewScenarioOpen: true }),
       closeNewScenario: () => set({ isNewScenarioOpen: false }),
+
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
     }),
     {
       name: 'planner-scenarios-ui',

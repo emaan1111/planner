@@ -146,14 +146,14 @@ function DraggableCourseCard({ course, onEdit, onDelete }: DraggableCourseCardPr
             )}
           </div>
         </div>
-        <div className="opacity-0 group-hover:opacity-100 flex flex-col gap-1">
+        <div className="md:opacity-0 md:group-hover:opacity-100 flex flex-col gap-1">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onEdit();
             }}
             onPointerDown={(e) => e.stopPropagation()}
-            className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
             title="Edit course"
           >
             <Pencil className="w-3 h-3 text-gray-500" />
@@ -164,7 +164,7 @@ function DraggableCourseCard({ course, onEdit, onDelete }: DraggableCourseCardPr
               onDelete();
             }}
             onPointerDown={(e) => e.stopPropagation()}
-            className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
+            className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
             title="Delete course"
           >
             <Trash2 className="w-3 h-3 text-red-500" />

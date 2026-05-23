@@ -141,7 +141,7 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
               />
             </Field>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <DaysField
                 label="Marketing duration"
                 days={form.marketingDurationDays ?? 0}
@@ -160,7 +160,7 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Field label="Price / child ($)">
                 <input
                   type="number"
@@ -203,7 +203,7 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Risks">
                 <textarea
                   value={(form.defaultRisks as string) ?? ''}
@@ -222,7 +222,7 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <ColorPicker
                 label="Marketing color"
                 value={form.marketingColor as EventColor}
@@ -248,7 +248,7 @@ function CourseEditorBody({ editing }: { editing: CourseTemplate | null }) {
                 </span>
               </label>
               {form.isMembership && (
-                <div className="grid grid-cols-3 gap-3 mt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
                   <Field label="Billing period (days)">
                     <input
                       type="number"

@@ -23,6 +23,7 @@ import {
   Trash2,
   Pencil,
   Calendar,
+  X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -37,7 +38,7 @@ export function ScenarioSidebar() {
   const duplicateScenario = useDuplicateScenario();
   const updateScenario = useUpdateScenario();
 
-  const { activeScenarioId, setActiveScenario } = useScenariosStore();
+  const { activeScenarioId, setActiveScenario, sidebarOpen, setSidebarOpen } = useScenariosStore();
   const [openFolderIds, setOpenFolderIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -85,23 +86,49 @@ export function ScenarioSidebar() {
   const unfiledScenarios = scenarios.filter((s) => !s.folderId);
 
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col">
+    <>
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="md:hidden fixed inset-0 z-30 bg-gray-950/40 backdrop-blur-[1px]"
+          aria-hidden
+        />
+      )}
+      <aside
+        className={clsx(
+          'flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900',
+          // Mobile: slide-over drawer
+          'fixed inset-y-0 left-0 z-40 w-[82vw] max-w-xs transform transition-transform duration-200 ease-out shadow-xl',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          // Desktop: static rail
+          'md:relative md:translate-x-0 md:shadow-none md:w-64 md:flex-shrink-0',
+        )}
+      >
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Scenarios</h2>
         <div className="flex items-center gap-1">
           <button
             onClick={handleAddFolder}
             title="New folder"
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
           >
             <FolderPlus className="w-4 h-4" />
           </button>
           <button
             onClick={() => handleAddScenario(null)}
             title="New scenario"
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
           >
             <Plus className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            title="Close"
+            aria-label="Close sidebar"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -139,14 +166,14 @@ export function ScenarioSidebar() {
                   <span className="flex-1 truncate text-gray-700 dark:text-gray-200">{folder.name}</span>
                 )}
                 <span className="text-xs text-gray-400">{folderScenarios.length}</span>
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+                <div className="md:opacity-0 md:group-hover:opacity-100 flex items-center gap-0.5">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAddScenario(folder.id);
                     }}
                     title="Add scenario to folder"
-                    className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
                   >
                     <Plus className="w-3 h-3 text-gray-500" />
                   </button>
@@ -157,7 +184,7 @@ export function ScenarioSidebar() {
                       setRenameValue(folder.name);
                     }}
                     title="Rename"
-                    className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
                   >
                     <Pencil className="w-3 h-3 text-gray-500" />
                   </button>
@@ -168,7 +195,7 @@ export function ScenarioSidebar() {
                         deleteFolder.mutate(folder.id);
                     }}
                     title="Delete"
-                    className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
+                    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
                   >
                     <Trash2 className="w-3 h-3 text-red-500" />
                   </button>
@@ -250,6 +277,7 @@ export function ScenarioSidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }
 
@@ -308,14 +336,14 @@ function ScenarioRow({
       ) : (
         <span className="flex-1 truncate">{name}</span>
       )}
-      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+      <div className="md:opacity-0 md:group-hover:opacity-100 flex items-center gap-0.5">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onRenameStart();
           }}
           title="Rename"
-          className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
         >
           <Pencil className="w-3 h-3 text-gray-500" />
         </button>
@@ -325,7 +353,7 @@ function ScenarioRow({
             onDuplicate();
           }}
           title="Duplicate"
-          className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
         >
           <Copy className="w-3 h-3 text-gray-500" />
         </button>
@@ -335,7 +363,7 @@ function ScenarioRow({
             onDelete();
           }}
           title="Delete"
-          className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
+          className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
         >
           <Trash2 className="w-3 h-3 text-red-500" />
         </button>

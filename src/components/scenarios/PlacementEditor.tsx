@@ -127,8 +127,8 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
             </button>
           </header>
 
-          <div className="p-5 overflow-y-auto space-y-4">
-            <div className="grid grid-cols-4 gap-2">
+          <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Metric label="Revenue" value={`$${revenue.toFixed(0)}`} tone="indigo" />
               <Metric label="Cost" value={`$${m.cost.toFixed(0)}`} tone="rose" />
               <Metric label="Profit" value={`$${m.profit.toFixed(0)}`} tone={m.profit >= 0 ? 'emerald' : 'rose'} />
@@ -136,7 +136,7 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
             </div>
 
             {/* Dates */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Marketing start">
                 <input
                   type="date"
@@ -156,7 +156,7 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
             </div>
 
             {/* Durations in days */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <DaysDial
                 label="Marketing duration"
                 days={form.marketingDurationDays ?? 0}
@@ -220,7 +220,7 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
               </label>
               {form.isMembership && (
                 <>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                     <DialSlider
                       label="Monthly churn"
                       value={form.monthlyChurnPercent ?? 5}
@@ -284,7 +284,7 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
                     </div>
                   </div>
                   {form.entryMode === 'trial-to-paid' && (
-                    <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                       <DialSlider
                         label="Trial duration"
                         value={form.trialDurationDays ?? 14}
@@ -309,7 +309,7 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3 text-amber-500" /> Risks
@@ -334,7 +334,7 @@ function PlacementEditorBody({ placement }: { placement: CoursePlacement }) {
 
             <div>
               <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Apply changes to</label>
-              <div className="mt-1 grid grid-cols-3 gap-2 text-xs">
+              <div className="mt-1 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                 <ScopeButton
                   selected={scope === 'this-placement'}
                   onClick={() => setScope('this-placement')}

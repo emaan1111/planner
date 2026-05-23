@@ -92,26 +92,28 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900">
-        <div className="flex items-center gap-3">
+      <div className="px-2 sm:px-4 py-2 sm:py-3 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-gray-900">
+        <div className="flex items-center gap-1 sm:gap-3 min-w-0">
           <button
             onClick={goToPreviousMonth}
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+            aria-label="Previous month"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 min-w-[160px] text-center">
+          <h2 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 sm:min-w-[160px] text-center truncate">
             {periodLabel}
           </h2>
           <button
             onClick={goToNextMonth}
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+            aria-label="Next month"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
             onClick={goToToday}
-            className="ml-2 text-xs px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="ml-1 sm:ml-2 text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             Today
           </button>
@@ -135,9 +137,9 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
         className={clsx(
           'flex-1 overflow-auto bg-gray-50 dark:bg-gray-950',
           viewMode === 'month' && 'p-0',
-          viewMode === 'three-month' && 'p-3 grid grid-cols-1 md:grid-cols-3 gap-3',
-          viewMode === 'six-month' && 'p-3 grid grid-cols-2 md:grid-cols-3 gap-3',
-          viewMode === 'year' && 'p-3 grid grid-cols-2 md:grid-cols-4 gap-3',
+          viewMode === 'three-month' && 'p-2 sm:p-3 grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3',
+          viewMode === 'six-month' && 'p-2 sm:p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3',
+          viewMode === 'year' && 'p-2 sm:p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3',
         )}
       >
         {monthOffsets.map((offset) => (
@@ -268,7 +270,7 @@ function NewEventDialog({
             Single-day event
           </label>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">
                 {singleDay ? 'Date' : 'Start date'}
@@ -547,7 +549,7 @@ function CalendarDay({
       ref={setNodeRef}
       className={clsx(
         'bg-white dark:bg-gray-950 flex flex-col gap-1 transition-colors group',
-        compact ? 'min-h-[42px] p-0.5' : 'min-h-[100px] p-1',
+        compact ? 'min-h-[42px] p-0.5' : 'min-h-[64px] sm:min-h-[100px] p-1',
         !inMonth && 'opacity-40',
         isOver && 'ring-2 ring-indigo-400 ring-inset bg-indigo-50 dark:bg-indigo-950/40',
       )}
@@ -568,7 +570,8 @@ function CalendarDay({
               onAddEvent(day);
             }}
             title="Add event / note"
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700"
+            aria-label="Add event"
+            className="md:opacity-0 md:group-hover:opacity-100 p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700"
           >
             <Plus className="w-3 h-3" />
           </button>
