@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useScenariosStore } from '@/store/scenariosStore';
-import { usePlacements, useScenarios } from '@/hooks/useScenariosQuery';
+import { usePlacements, useScenarios, useScenarioFolders } from '@/hooks/useScenariosQuery';
 import {
   computePlacementMetrics,
   computeRevenue,
@@ -16,7 +16,7 @@ import {
   effectivePrice,
   effectiveChurn,
 } from '@/types/scenarios';
-import { X, TrendingUp, AlertTriangle, Users, GitCompare } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Users, GitCompare, ChevronUp, ChevronDown, SlidersHorizontal, Check, Folder } from 'lucide-react';
 import clsx from 'clsx';
 
 interface DetailedPnLReportProps {
@@ -27,6 +27,7 @@ interface DetailedPnLReportProps {
 export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
   const { activeScenarioId } = useScenariosStore();
   const { data: scenarios = [] } = useScenarios();
+  const { data: folders = [] } = useScenarioFolders();
   const scenario = scenarios.find((s) => s.id === activeScenarioId);
   const { data: placements = [] } = usePlacements(activeScenarioId ?? undefined);
 
@@ -140,40 +141,16 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
               <Stat label="Members yr 1" value={`${Math.round(report.totals.membersYear1)}`} tone="indigo" />
             </section>
 
-            {/* Scenario comparison — full table of all scenarios */}
+            {/* Scenario comparison — scoped to active scenario's folder by default.
+                Keyed by the active bucket so the user's custom selection resets when
+                they switch to a scenario in a different folder. */}
             {scenarios.length > 1 && (
-              <section>
-                <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-2 flex items-center gap-1">
-                  <GitCompare className="w-3 h-3" /> Compare scenarios
-                </h3>
-                <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800">
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500">
-                      <tr>
-                        <Th>Scenario</Th>
-                        <Th>Placements</Th>
-                        <Th>Members</Th>
-                        <Th>6mo rev</Th>
-                        <Th>12mo rev</Th>
-                        <Th>Lifetime rev</Th>
-                        <Th>Cost</Th>
-                        <Th>Profit</Th>
-                        <Th>EV</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scenarios.map((s) => (
-                        <ScenarioCompareTableRow
-                          key={s.id}
-                          scenarioId={s.id}
-                          name={s.name}
-                          isActive={s.id === activeScenarioId}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+              <ScenarioCompareSection
+                key={scenario?.folderId ?? 'unfiled'}
+                scenarios={scenarios}
+                folders={folders}
+                activeScenarioId={activeScenarioId ?? null}
+              />
             )}
 
             {/* Per-course breakdown */}
@@ -571,17 +548,376 @@ function LikelihoodPill({ level, percent }: { level: ReturnType<typeof likelihoo
   );
 }
 
+type CompareSortKey =
+  | 'name'
+  | 'placements'
+  | 'members'
+  | 'revenue6mo'
+  | 'revenue12mo'
+  | 'revenue'
+  | 'cost'
+  | 'profit'
+  | 'ev';
+
+type CompareRowStats = ReturnType<typeof computeScenarioCompareStats> & { placements: number };
+
+function ScenarioCompareSection({
+  scenarios,
+  folders,
+  activeScenarioId,
+}: {
+  scenarios: { id: string; name: string; folderId?: string }[];
+  folders: { id: string; name: string }[];
+  activeScenarioId: string | null;
+}) {
+  const [sortKey, setSortKey] = useState<CompareSortKey>('profit');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [statsById, setStatsById] = useState<Record<string, CompareRowStats>>({});
+  // null = use the default folder-scoped selection. A Set means the user has
+  // overridden the selection explicitly via the picker.
+  const [customSelection, setCustomSelection] = useState<Set<string> | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const active = scenarios.find((s) => s.id === activeScenarioId);
+  const activeBucket = active?.folderId ?? null;
+
+  const defaultSelectedIds = useMemo(
+    () =>
+      new Set(
+        scenarios.filter((s) => (s.folderId ?? null) === activeBucket).map((s) => s.id),
+      ),
+    [scenarios, activeBucket],
+  );
+
+  const selectedIds = customSelection ?? defaultSelectedIds;
+  const visibleScenarios = useMemo(
+    () => scenarios.filter((s) => selectedIds.has(s.id)),
+    [scenarios, selectedIds],
+  );
+
+  const activeBucketLabel = activeBucket
+    ? folders.find((f) => f.id === activeBucket)?.name ?? 'Folder'
+    : 'Unfiled';
+  const isCustom = customSelection !== null;
+
+  const handleStats = useCallback((scenarioId: string, stats: CompareRowStats) => {
+    setStatsById((prev) => {
+      const existing = prev[scenarioId];
+      if (
+        existing &&
+        existing.placements === stats.placements &&
+        existing.revenue === stats.revenue &&
+        existing.cost === stats.cost &&
+        existing.profit === stats.profit &&
+        existing.ev === stats.ev &&
+        existing.revenue6mo === stats.revenue6mo &&
+        existing.revenue12mo === stats.revenue12mo &&
+        existing.members === stats.members
+      ) {
+        return prev;
+      }
+      return { ...prev, [scenarioId]: stats };
+    });
+  }, []);
+
+  const toggleSort = (key: CompareSortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'name' ? 'asc' : 'desc');
+    }
+  };
+
+  const sortedScenarios = useMemo(() => {
+    const arr = [...visibleScenarios];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      if (sortKey === 'name') {
+        return a.name.localeCompare(b.name) * dir;
+      }
+      const sa = statsById[a.id];
+      const sb = statsById[b.id];
+      const va = sa ? sa[sortKey] : Number.NEGATIVE_INFINITY;
+      const vb = sb ? sb[sortKey] : Number.NEGATIVE_INFINITY;
+      if (va === vb) return 0;
+      return (va < vb ? -1 : 1) * dir;
+    });
+    return arr;
+  }, [visibleScenarios, statsById, sortKey, sortDir]);
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <h3 className="text-xs uppercase tracking-wide text-gray-400 flex items-center gap-1">
+          <GitCompare className="w-3 h-3" /> Compare scenarios
+          <span className="ml-2 normal-case tracking-normal text-gray-500 dark:text-gray-400">
+            {isCustom ? (
+              <>· {visibleScenarios.length} selected</>
+            ) : (
+              <>· {activeBucketLabel} ({visibleScenarios.length})</>
+            )}
+          </span>
+        </h3>
+        <div className="flex items-center gap-2">
+          {isCustom && (
+            <button
+              onClick={() => setCustomSelection(null)}
+              className="text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline"
+              title="Reset to scenarios in the active folder"
+            >
+              Reset
+            </button>
+          )}
+          <button
+            onClick={() => setPickerOpen((v) => !v)}
+            className={clsx(
+              'text-[11px] inline-flex items-center gap-1 px-2 py-1 rounded border',
+              pickerOpen
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-200 dark:border-indigo-700'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800',
+            )}
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            Customize
+          </button>
+        </div>
+      </div>
+
+      {pickerOpen && (
+        <ScenarioComparePicker
+          scenarios={scenarios}
+          folders={folders}
+          selectedIds={selectedIds}
+          activeScenarioId={activeScenarioId}
+          onChange={(next) => setCustomSelection(next)}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+      <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500">
+            <tr>
+              <SortableTh sortKey="name" current={sortKey} dir={sortDir} onSort={toggleSort}>Scenario</SortableTh>
+              <SortableTh sortKey="placements" current={sortKey} dir={sortDir} onSort={toggleSort}>Placements</SortableTh>
+              <SortableTh sortKey="members" current={sortKey} dir={sortDir} onSort={toggleSort}>Members</SortableTh>
+              <SortableTh sortKey="revenue6mo" current={sortKey} dir={sortDir} onSort={toggleSort}>6mo rev</SortableTh>
+              <SortableTh sortKey="revenue12mo" current={sortKey} dir={sortDir} onSort={toggleSort}>12mo rev</SortableTh>
+              <SortableTh sortKey="revenue" current={sortKey} dir={sortDir} onSort={toggleSort}>Lifetime rev</SortableTh>
+              <SortableTh sortKey="cost" current={sortKey} dir={sortDir} onSort={toggleSort}>Cost</SortableTh>
+              <SortableTh sortKey="profit" current={sortKey} dir={sortDir} onSort={toggleSort}>Profit</SortableTh>
+              <SortableTh sortKey="ev" current={sortKey} dir={sortDir} onSort={toggleSort}>EV</SortableTh>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedScenarios.map((s) => (
+              <ScenarioCompareTableRow
+                key={s.id}
+                scenarioId={s.id}
+                name={s.name}
+                isActive={s.id === activeScenarioId}
+                onStats={handleStats}
+              />
+            ))}
+            {sortedScenarios.length === 0 && (
+              <tr>
+                <td colSpan={9} className="text-center text-gray-400 italic py-4">
+                  No scenarios selected — use Customize to pick scenarios to compare.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ScenarioComparePicker({
+  scenarios,
+  folders,
+  selectedIds,
+  activeScenarioId,
+  onChange,
+  onClose,
+}: {
+  scenarios: { id: string; name: string; folderId?: string }[];
+  folders: { id: string; name: string }[];
+  selectedIds: Set<string>;
+  activeScenarioId: string | null;
+  onChange: (next: Set<string>) => void;
+  onClose: () => void;
+}) {
+  const toggle = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(next);
+  };
+
+  const groups: Array<{ key: string; label: string; items: typeof scenarios }> = [];
+  for (const f of folders) {
+    const items = scenarios.filter((s) => s.folderId === f.id);
+    if (items.length > 0) groups.push({ key: f.id, label: f.name, items });
+  }
+  const unfiled = scenarios.filter((s) => !s.folderId);
+  if (unfiled.length > 0) groups.push({ key: 'unfiled', label: 'Unfiled', items: unfiled });
+
+  const selectGroup = (items: typeof scenarios, mode: 'add' | 'remove') => {
+    const next = new Set(selectedIds);
+    for (const s of items) {
+      if (mode === 'add') next.add(s.id);
+      else next.delete(s.id);
+    }
+    onChange(next);
+  };
+
+  return (
+    <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] uppercase tracking-wide text-gray-500">
+          Pick scenarios to compare
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onChange(new Set(scenarios.map((s) => s.id)))}
+            className="text-[10px] text-indigo-600 hover:text-indigo-700 dark:text-indigo-300"
+          >
+            Select all
+          </button>
+          <button
+            onClick={() =>
+              onChange(activeScenarioId ? new Set([activeScenarioId]) : new Set())
+            }
+            className="text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            Clear
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+            title="Close picker"
+          >
+            <X className="w-3 h-3 text-gray-500" />
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+        {groups.map((g) => {
+          const allSelected = g.items.every((s) => selectedIds.has(s.id));
+          return (
+            <div key={g.key}>
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-gray-500 mb-1">
+                <span className="inline-flex items-center gap-1">
+                  <Folder className="w-3 h-3 text-indigo-400" />
+                  {g.label}
+                </span>
+                <button
+                  onClick={() => selectGroup(g.items, allSelected ? 'remove' : 'add')}
+                  className="text-[10px] text-indigo-600 hover:text-indigo-700 dark:text-indigo-300"
+                >
+                  {allSelected ? 'Clear' : 'All'}
+                </button>
+              </div>
+              <div className="space-y-0.5">
+                {g.items.map((s) => {
+                  const checked = selectedIds.has(s.id);
+                  const isActive = s.id === activeScenarioId;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => toggle(s.id)}
+                      className={clsx(
+                        'w-full text-left text-xs px-2 py-1 rounded flex items-center gap-2',
+                        checked
+                          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200'
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-700/60 text-gray-700 dark:text-gray-300',
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0',
+                          checked
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            : 'border-gray-300 dark:border-gray-600',
+                        )}
+                      >
+                        {checked && <Check className="w-2.5 h-2.5" />}
+                      </span>
+                      <span className="flex-1 truncate">{s.name}</span>
+                      {isActive && (
+                        <span className="text-[9px] uppercase tracking-wide text-indigo-500">
+                          active
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SortableTh({
+  children,
+  sortKey,
+  current,
+  dir,
+  onSort,
+}: {
+  children: React.ReactNode;
+  sortKey: CompareSortKey;
+  current: CompareSortKey;
+  dir: 'asc' | 'desc';
+  onSort: (key: CompareSortKey) => void;
+}) {
+  const isActive = current === sortKey;
+  return (
+    <th className="text-left px-3 py-2 font-medium select-none">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={clsx(
+          'inline-flex items-center gap-1 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200',
+          isActive ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500',
+        )}
+      >
+        {children}
+        {isActive ? (
+          dir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 opacity-40" />
+        )}
+      </button>
+    </th>
+  );
+}
+
 function ScenarioCompareTableRow({
   scenarioId,
   name,
   isActive,
+  onStats,
 }: {
   scenarioId: string;
   name: string;
   isActive: boolean;
+  onStats: (scenarioId: string, stats: CompareRowStats) => void;
 }) {
   const { data: placements = [] } = usePlacements(scenarioId);
-  const stats = computeScenarioCompareStats(placements);
+  const stats = useMemo(() => computeScenarioCompareStats(placements), [placements]);
+  const rowStats = useMemo<CompareRowStats>(
+    () => ({ ...stats, placements: placements.length }),
+    [stats, placements.length],
+  );
+  useEffect(() => {
+    onStats(scenarioId, rowStats);
+  }, [scenarioId, rowStats, onStats]);
   return (
     <tr
       className={clsx(

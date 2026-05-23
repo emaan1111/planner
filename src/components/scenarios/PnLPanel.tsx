@@ -40,6 +40,13 @@ export function PnLPanel() {
   // We can only show a value here for scenarios we've fetched placements for.
   // For now, show the active one prominently and a CTA to compare elsewhere.
   const activeScenario = scenarios.find((s) => s.id === activeScenarioId);
+  const activeBucket = activeScenario?.folderId ?? null;
+  // Only compare scenarios in the active scenario's bucket (its folder, or
+  // "unfiled" if it has none). Manual selection lives in the detailed report.
+  const compareScenarios = useMemo(
+    () => scenarios.filter((s) => (s.folderId ?? null) === activeBucket),
+    [scenarios, activeBucket],
+  );
 
   // group by month for the current scenario
   const monthly = useMemo(() => {
@@ -108,7 +115,7 @@ export function PnLPanel() {
 
         <div className="mt-4 flex items-center justify-between mb-2">
           <h3 className="text-xs uppercase tracking-wide text-gray-400">Compare Scenarios</h3>
-          {scenarios.length > 1 && (
+          {compareScenarios.length > 1 && (
             <button
               onClick={() => setIsReportOpen(true)}
               className="text-[10px] text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200 font-medium"
@@ -119,19 +126,23 @@ export function PnLPanel() {
           )}
         </div>
         <div className="space-y-1">
-          {scenarios.slice(0, 4).map((s) => (
+          {compareScenarios.slice(0, 4).map((s) => (
             <ScenarioCompareRow key={s.id} scenarioId={s.id} name={s.name} isActive={s.id === activeScenarioId} />
           ))}
-          {scenarios.length > 4 && (
+          {compareScenarios.length > 4 && (
             <button
               onClick={() => setIsReportOpen(true)}
               className="w-full text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 italic py-1"
             >
-              +{scenarios.length - 4} more · open detailed report
+              +{compareScenarios.length - 4} more · open detailed report
             </button>
           )}
-          {scenarios.length === 0 && (
-            <p className="text-xs text-gray-400 italic">No scenarios to compare.</p>
+          {compareScenarios.length <= 1 && (
+            <p className="text-xs text-gray-400 italic">
+              {scenarios.length <= 1
+                ? 'No scenarios to compare.'
+                : 'No other scenarios in this folder — open detailed report to pick scenarios.'}
+            </p>
           )}
         </div>
 
