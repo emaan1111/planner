@@ -22,6 +22,8 @@ interface ScenariosUIState {
   rightRailCollapsed: boolean; // desktop library + P&L rail hidden
   viewMode: ScenarioViewMode;
   customMonths: ScenarioCustomMonth[];
+  showDelivery: boolean; // show delivery bars on the calendar
+  notesPanelOpen: boolean; // inline scenario notes panel
 
   setActiveScenario: (id: string | null) => void;
   setActiveFolder: (id: string | null) => void;
@@ -46,6 +48,8 @@ interface ScenariosUIState {
   setViewMode: (mode: ScenarioViewMode) => void;
   setCustomMonths: (months: ScenarioCustomMonth[]) => void;
   toggleCustomMonth: (year: number, month: number) => void;
+  toggleDelivery: () => void;
+  setNotesPanelOpen: (open: boolean) => void;
 }
 
 function startOfMonth(d: Date): Date {
@@ -68,6 +72,8 @@ export const useScenariosStore = create<ScenariosUIState>()(
       rightRailCollapsed: false,
       viewMode: 'month',
       customMonths: [],
+      showDelivery: true,
+      notesPanelOpen: false,
 
       setActiveScenario: (id) => set({ activeScenarioId: id, sidebarOpen: false }),
       setActiveFolder: (id) => set({ activeFolderId: id }),
@@ -108,6 +114,8 @@ export const useScenariosStore = create<ScenariosUIState>()(
           set({ customMonths: [...current, { year, month }].sort((a, b) => a.year - b.year || a.month - b.month) });
         }
       },
+      toggleDelivery: () => set({ showDelivery: !get().showDelivery }),
+      setNotesPanelOpen: (open) => set({ notesPanelOpen: open }),
     }),
     {
       name: 'planner-scenarios-ui',
@@ -125,6 +133,7 @@ export const useScenariosStore = create<ScenariosUIState>()(
         rightRailCollapsed: state.rightRailCollapsed,
         viewMode: state.viewMode,
         customMonths: state.customMonths,
+        showDelivery: state.showDelivery,
       } as ScenariosUIState),
     },
   ),

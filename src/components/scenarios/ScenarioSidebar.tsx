@@ -11,6 +11,7 @@ import {
   useDeleteScenario,
   useDuplicateScenario,
   useUpdateScenario,
+  useReorderScenarios,
 } from '@/hooks/useScenariosQuery';
 import { useScenariosStore } from '@/store/scenariosStore';
 import {
@@ -24,6 +25,7 @@ import {
   Pencil,
   Calendar,
   X,
+  GripVertical,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -37,11 +39,34 @@ export function ScenarioSidebar() {
   const deleteScenario = useDeleteScenario();
   const duplicateScenario = useDuplicateScenario();
   const updateScenario = useUpdateScenario();
+  const reorderScenarios = useReorderScenarios();
 
   const { activeScenarioId, setActiveScenario, sidebarOpen, setSidebarOpen, leftRailCollapsed } = useScenariosStore();
   const [openFolderIds, setOpenFolderIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleReorder = (draggedId: string, dropTargetId: string) => {
+    if (draggedId === dropTargetId) return;
+    const dragged = scenarios.find((s) => s.id === draggedId);
+    const target = scenarios.find((s) => s.id === dropTargetId);
+    if (!dragged || !target) return;
+    const bucket = target.folderId ?? null;
+    // Only reorder within the same bucket; ignore cross-bucket drops for now.
+    if ((dragged.folderId ?? null) !== bucket) return;
+    const inBucket = scenarios
+      .filter((s) => (s.folderId ?? null) === bucket)
+      .sort((a, b) => a.order - b.order);
+    const draggedIdx = inBucket.findIndex((s) => s.id === draggedId);
+    const targetIdx = inBucket.findIndex((s) => s.id === dropTargetId);
+    if (draggedIdx === -1 || targetIdx === -1) return;
+    const reordered = [...inBucket];
+    const [removed] = reordered.splice(draggedIdx, 1);
+    reordered.splice(targetIdx, 0, removed);
+    reorderScenarios.mutate(reordered.map((s, i) => ({ id: s.id, order: i })));
+  };
 
   const toggleFolder = (id: string) => {
     setOpenFolderIds((prev) => {
@@ -228,6 +253,20 @@ export function ScenarioSidebar() {
                       onDelete={() => {
                         if (confirm(`Delete scenario "${s.name}"?`)) deleteScenario.mutate(s.id);
                       }}
+                      isDragging={draggingId === s.id}
+                      isDragOver={dragOverId === s.id && draggingId !== null && draggingId !== s.id}
+                      onDragStart={() => setDraggingId(s.id)}
+                      onDragEnd={() => {
+                        setDraggingId(null);
+                        setDragOverId(null);
+                      }}
+                      onDragOver={() => setDragOverId(s.id)}
+                      onDragLeave={() => setDragOverId((cur) => (cur === s.id ? null : cur))}
+                      onDrop={() => {
+                        if (draggingId) handleReorder(draggingId, s.id);
+                        setDraggingId(null);
+                        setDragOverId(null);
+                      }}
                     />
                   ))}
                 </div>
@@ -259,6 +298,20 @@ export function ScenarioSidebar() {
                 onDuplicate={() => duplicateScenario.mutate({ id: s.id })}
                 onDelete={() => {
                   if (confirm(`Delete scenario "${s.name}"?`)) deleteScenario.mutate(s.id);
+                }}
+                isDragging={draggingId === s.id}
+                isDragOver={dragOverId === s.id && draggingId !== null && draggingId !== s.id}
+                onDragStart={() => setDraggingId(s.id)}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDragOverId(null);
+                }}
+                onDragOver={() => setDragOverId(s.id)}
+                onDragLeave={() => setDragOverId((cur) => (cur === s.id ? null : cur))}
+                onDrop={() => {
+                  if (draggingId) handleReorder(draggingId, s.id);
+                  setDraggingId(null);
+                  setDragOverId(null);
                 }}
               />
             ))}
@@ -296,9 +349,17 @@ interface ScenarioRowProps {
   onSelect: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  isDragging: boolean;
+  isDragOver: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
 }
 
 function ScenarioRow({
+  id,
   name,
   active,
   renaming,
@@ -310,17 +371,47 @@ function ScenarioRow({
   onSelect,
   onDuplicate,
   onDelete,
+  isDragging,
+  isDragOver,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: ScenarioRowProps) {
   return (
     <div
+      draggable={!renaming}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/scenario-id', id);
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOver();
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop();
+      }}
       onClick={onSelect}
       className={clsx(
-        'group flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer',
+        'group flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer relative',
         active
           ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200'
           : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300',
+        isDragging && 'opacity-40',
+        isDragOver && 'before:absolute before:-top-px before:left-0 before:right-0 before:h-0.5 before:bg-indigo-500 before:rounded',
       )}
     >
+      <GripVertical
+        className="w-3 h-3 flex-shrink-0 text-gray-300 dark:text-gray-600 md:opacity-0 md:group-hover:opacity-100 cursor-grab active:cursor-grabbing"
+        aria-label="Drag to reorder"
+      />
       <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
       {renaming ? (
         <input

@@ -22,6 +22,8 @@ import {
   useCreateScenarioEvent,
   useDeleteScenarioEvent,
   useUpdatePlacement,
+  useScenarios,
+  useUpdateScenario,
 } from '@/hooks/useScenariosQuery';
 import { useUndoStore } from './ScenarioUndoProvider';
 import { computePlacementMetrics, CoursePlacement, ScenarioEvent } from '@/types/scenarios';
@@ -35,6 +37,9 @@ import {
   Plus,
   AlertTriangle,
   Check,
+  Eye,
+  EyeOff,
+  StickyNote,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -54,9 +59,16 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
     setViewMode,
     customMonths,
     toggleCustomMonth,
+    showDelivery,
+    toggleDelivery,
+    notesPanelOpen,
+    setNotesPanelOpen,
   } = useScenariosStore();
   const { data: placements = [] } = usePlacements(scenarioId ?? undefined);
   const { data: scenarioEvents = [] } = useScenarioEvents(scenarioId ?? undefined);
+  const { data: scenarios = [] } = useScenarios();
+  const activeScenario = scenarios.find((s) => s.id === scenarioId) ?? null;
+  const updateScenario = useUpdateScenario();
   const createEvent = useCreateScenarioEvent();
 
   const [eventDraft, setEventDraft] = useState<{ date: Date } | null>(null);
@@ -248,6 +260,37 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setNotesPanelOpen(!notesPanelOpen)}
+            className={clsx(
+              'inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors',
+              notesPanelOpen
+                ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300',
+            )}
+            title={notesPanelOpen ? 'Hide scenario notes' : 'Show scenario notes'}
+            aria-pressed={notesPanelOpen}
+          >
+            <StickyNote className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Notes</span>
+            {activeScenario?.notes?.trim() && !notesPanelOpen && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-label="Has notes" />
+            )}
+          </button>
+          <button
+            onClick={toggleDelivery}
+            className={clsx(
+              'inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors',
+              showDelivery
+                ? 'border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
+                : 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
+            )}
+            title={showDelivery ? 'Hide delivery periods' : 'Show delivery periods'}
+            aria-pressed={showDelivery}
+          >
+            {showDelivery ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">Delivery</span>
+          </button>
           {viewMode === 'custom' && (
             <button
               onClick={() => setIsPickerOpen(true)}
@@ -268,6 +311,18 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
           />
         </div>
       </div>
+
+      {notesPanelOpen && activeScenario && (
+        <ScenarioNotesPanel
+          key={activeScenario.id}
+          scenarioName={activeScenario.name}
+          initialNotes={activeScenario.notes ?? ''}
+          onSave={(notes) =>
+            updateScenario.mutate({ id: activeScenario.id, updates: { notes } })
+          }
+          onClose={() => setNotesPanelOpen(false)}
+        />
+      )}
 
       {/* Days-of-week header (only meaningful for single month view; others stack their own) */}
       {viewMode === 'month' && (
@@ -308,6 +363,7 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
               placements={placements}
               scenarioEvents={scenarioEvents}
               compact={viewMode !== 'month'}
+              showDelivery={showDelivery}
               onClickMonthLabel={(target) => {
                 setCurrentMonth(target);
                 setViewMode('month');
@@ -542,6 +598,66 @@ function NewEventDialog({
   );
 }
 
+function ScenarioNotesPanel({
+  scenarioName,
+  initialNotes,
+  onSave,
+  onClose,
+}: {
+  scenarioName: string;
+  initialNotes: string;
+  onSave: (notes: string) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(initialNotes);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const lastSavedRef = useRef(initialNotes);
+
+  useEffect(() => {
+    if (value === lastSavedRef.current) return;
+    const t = setTimeout(() => {
+      onSave(value);
+      lastSavedRef.current = value;
+      setSavedAt(new Date());
+    }, 600);
+    return () => clearTimeout(t);
+  }, [value, onSave]);
+
+  return (
+    <div className="px-2 sm:px-4 py-2 border-b border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10">
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">
+          <StickyNote className="w-3.5 h-3.5" />
+          Notes — <span className="font-normal text-amber-700/80 dark:text-amber-200/70 truncate max-w-[40ch]">{scenarioName}</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-amber-700/70 dark:text-amber-200/60">
+            {value === lastSavedRef.current && savedAt
+              ? `Saved ${format(savedAt, 'HH:mm:ss')}`
+              : value !== lastSavedRef.current
+                ? 'Saving…'
+                : 'Auto-saves'}
+          </span>
+          <button
+            onClick={onClose}
+            className="text-xs text-amber-700 dark:text-amber-200 hover:underline"
+            aria-label="Hide notes"
+          >
+            Hide
+          </button>
+        </div>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        rows={3}
+        placeholder="Assumptions, decisions, things to revisit…"
+        className="w-full px-2 py-1.5 rounded border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
+      />
+    </div>
+  );
+}
+
 function ViewModeSwitcher({ mode, onChange }: { mode: ScenarioViewMode; onChange: (m: ScenarioViewMode) => void }) {
   const items: { id: ScenarioViewMode; label: string }[] = [
     { id: 'month', label: 'Month' },
@@ -583,6 +699,7 @@ interface MonthGridProps {
   placements: CoursePlacement[];
   scenarioEvents: ScenarioEvent[];
   compact: boolean;
+  showDelivery: boolean;
   onClickMonthLabel: (date: Date) => void;
   onClickPlacement: (id: string) => void;
   onAddEvent: (date: Date) => void;
@@ -596,6 +713,7 @@ function MonthGrid({
   placements,
   scenarioEvents,
   compact,
+  showDelivery,
   onClickMonthLabel,
   onClickPlacement,
   onAddEvent,
@@ -653,7 +771,7 @@ function MonthGrid({
           isStart: isSameDay(stripped, marketingStart),
           isEnd: isSameDay(stripped, addDays(marketingEndExclusive, -1)),
         });
-      } else if (stripped >= deliveryStart && stripped <= deliveryEndInclusive) {
+      } else if (showDelivery && stripped >= deliveryStart && stripped <= deliveryEndInclusive) {
         segmentsByDay.get(day.toDateString())!.push({
           type: 'placement',
           placement,
@@ -850,14 +968,14 @@ function PlacementSegment({
   const cls = colorClasses[color as EventColor] ?? colorClasses.indigo;
   const courseName = template?.name ?? 'Course';
   const isMarketing = kind === 'marketing';
-  const isIncomplete =
-    (placement.costPerRun ?? 0) <= 0 || (placement.projectedRegistrations ?? 0) <= 0;
   const missingFields: string[] = [];
-  if ((placement.costPerRun ?? 0) <= 0) missingFields.push('cost');
-  if ((placement.projectedRegistrations ?? 0) <= 0) missingFields.push('registrations');
-  const incompleteHint = isIncomplete
-    ? ` — incomplete: missing ${missingFields.join(' & ')} (no projection)`
-    : '';
+  if ((placement.costPerRun ?? 0) <= 0) missingFields.push('cost per run');
+  if ((placement.projectedRegistrations ?? 0) <= 0) missingFields.push('projected registrations');
+  if ((placement.pricePerChild ?? 0) <= 0) missingFields.push('price per child');
+  const isIncomplete = missingFields.length > 0;
+  const missingList = missingFields.join(', ');
+  const incompleteHint = isIncomplete ? ` — missing: ${missingList} (no projection)` : '';
+  const warningLabel = isIncomplete ? `Missing: ${missingList}` : '';
   return (
     <div
       onClick={(e) => {
@@ -929,8 +1047,10 @@ function PlacementSegment({
             compact ? 'w-2 h-2' : 'w-3 h-3',
             isMarketing && 'text-yellow-300',
           )}
-          aria-label="Missing cost or projected registrations"
-        />
+          aria-label={warningLabel}
+        >
+          <title>{warningLabel}</title>
+        </AlertTriangle>
       )}
       {isStart && !compact && (
         <button

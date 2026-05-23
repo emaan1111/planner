@@ -204,6 +204,42 @@ export function useUpdateScenario() {
   });
 }
 
+// Reorders scenarios within a single bucket (folder or unfiled). The caller passes
+// the new ordering as { id, order } pairs; only entries whose order actually
+// changes are sent to the server. Cache is updated optimistically so the list
+// snaps immediately and never flickers between settles.
+export function useReorderScenarios() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: { id: string; order: number }[]) => {
+      const changed = items.filter((it) => {
+        const cached = qc
+          .getQueryData<Scenario[]>(scenarioKeys.all)
+          ?.find((s) => s.id === it.id);
+        return cached?.order !== it.order;
+      });
+      qc.setQueryData<Scenario[]>(scenarioKeys.all, (prev) => {
+        if (!prev) return prev;
+        const byId = new Map(items.map((it) => [it.id, it.order]));
+        return prev
+          .map((s) => (byId.has(s.id) ? { ...s, order: byId.get(s.id)! } : s))
+          .sort((a, b) => a.order - b.order || a.createdAt.getTime() - b.createdAt.getTime());
+      });
+      await Promise.all(
+        changed.map((it) =>
+          fetch(`/api/scenarios/${it.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: it.order }),
+          }),
+        ),
+      );
+    },
+    onError: (e) => toast.error(err(e, 'Failed to reorder scenarios')),
+    onSettled: () => qc.invalidateQueries({ queryKey: scenarioKeys.all }),
+  });
+}
+
 export function useDeleteScenario() {
   const qc = useQueryClient();
   return useMutation({

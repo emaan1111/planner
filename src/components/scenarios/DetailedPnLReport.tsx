@@ -149,7 +149,10 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
                       <tr>
                         <Th>Scenario</Th>
                         <Th>Placements</Th>
-                        <Th>Revenue</Th>
+                        <Th>Members</Th>
+                        <Th>6mo rev</Th>
+                        <Th>12mo rev</Th>
+                        <Th>Lifetime rev</Th>
                         <Th>Cost</Th>
                         <Th>Profit</Th>
                         <Th>EV</Th>
@@ -512,8 +515,20 @@ function fmt(n: number): string {
 function Th({ children }: { children: React.ReactNode }) {
   return <th className="text-left px-3 py-2 font-medium">{children}</th>;
 }
-function Td({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <td className={clsx('px-3 py-2', className)}>{children}</td>;
+function Td({
+  children,
+  className,
+  title,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <td className={clsx('px-3 py-2', className)} title={title}>
+      {children}
+    </td>
+  );
 }
 
 function Stat({ label, value, tone }: { label: string; value: string; tone: 'indigo' | 'emerald' | 'rose' }) {
@@ -554,17 +569,7 @@ function ScenarioCompareTableRow({
   isActive: boolean;
 }) {
   const { data: placements = [] } = usePlacements(scenarioId);
-  let revenue = 0;
-  let cost = 0;
-  let profit = 0;
-  let ev = 0;
-  for (const p of placements) {
-    const m = computePlacementMetrics(p);
-    revenue += computeRevenue(p);
-    cost += m.cost;
-    profit += m.profit;
-    ev += m.expectedValue;
-  }
+  const stats = computeScenarioCompareStats(placements);
   return (
     <tr
       className={clsx(
@@ -577,12 +582,67 @@ function ScenarioCompareTableRow({
         {isActive && <span className="ml-2 text-[9px] uppercase tracking-wide text-indigo-500">active</span>}
       </Td>
       <Td>{placements.length}</Td>
-      <Td>{fmt(revenue)}</Td>
-      <Td>{fmt(cost)}</Td>
-      <Td className={clsx(profit >= 0 ? 'text-emerald-600' : 'text-rose-600', 'font-semibold')}>{fmt(profit)}</Td>
-      <Td className={clsx(ev >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{fmt(ev)}</Td>
+      <Td title="Avg active paying members across the next 12 months (memberships) + one-off registrations">
+        {Math.round(stats.members)}
+      </Td>
+      <Td>{fmt(stats.revenue6mo)}</Td>
+      <Td>{fmt(stats.revenue12mo)}</Td>
+      <Td>{fmt(stats.revenue)}</Td>
+      <Td>{fmt(stats.cost)}</Td>
+      <Td className={clsx(stats.profit >= 0 ? 'text-emerald-600' : 'text-rose-600', 'font-semibold')}>{fmt(stats.profit)}</Td>
+      <Td className={clsx(stats.ev >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{fmt(stats.ev)}</Td>
     </tr>
   );
+}
+
+// Aggregates a scenario's placements into the headline metrics shown in the
+// compare table. Membership revenue is bucketed per period via
+// membershipRevenueStream so the 6/12-month windows include only the portion
+// that lands inside that window from today. One-off revenue lands in its
+// delivery-start month.
+function computeScenarioCompareStats(placements: CoursePlacement[]) {
+  const now = new Date();
+  const sixMonthsOut = new Date(now.getFullYear(), now.getMonth() + 6, 1);
+  const twelveMonthsOut = new Date(now.getFullYear(), now.getMonth() + 12, 1);
+
+  let revenue = 0;
+  let cost = 0;
+  let profit = 0;
+  let ev = 0;
+  let revenue6mo = 0;
+  let revenue12mo = 0;
+  let members = 0;
+
+  for (const p of placements) {
+    const m = computePlacementMetrics(p);
+    const rev = computeRevenue(p);
+    revenue += rev;
+    cost += m.cost;
+    profit += m.profit;
+    ev += m.expectedValue;
+
+    if (p.isMembership) {
+      const stream = membershipRevenueStream(p);
+      let activeSum = 0;
+      let activeCount = 0;
+      for (const row of stream) {
+        if (row.date >= now && row.date < twelveMonthsOut) {
+          activeSum += row.activePaidMembers;
+          activeCount += 1;
+          revenue12mo += row.revenue;
+          if (row.date < sixMonthsOut) revenue6mo += row.revenue;
+        }
+      }
+      members += activeCount > 0 ? activeSum / activeCount : 0;
+    } else {
+      if (m.deliveryStart >= now && m.deliveryStart < twelveMonthsOut) {
+        revenue12mo += rev;
+        if (m.deliveryStart < sixMonthsOut) revenue6mo += rev;
+      }
+      members += p.projectedRegistrations;
+    }
+  }
+  return { revenue, cost, profit, ev, revenue6mo, revenue12mo, members };
 }
 
 function RiskPill({ level }: { level: ReturnType<typeof riskLevel> }) {
