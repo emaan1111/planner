@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useScenariosStore } from '@/store/scenariosStore';
 import { usePlacements, useScenarios } from '@/hooks/useScenariosQuery';
 import {
@@ -30,11 +30,49 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
   const report = useMemo(() => buildReport(placements), [placements]);
 
   const [mounted, setMounted] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [initialPos, setInitialPos] = useState<{ left: number; top: number } | null>(null);
   useEffect(() => {
     setMounted(true);
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
+  useEffect(() => {
+    if (!open || initialPos || typeof window === 'undefined') return;
+    const w = Math.min(1100, window.innerWidth * 0.96);
+    setInitialPos({
+      left: Math.max(8, (window.innerWidth - w) / 2),
+      top: Math.max(8, window.innerHeight * 0.06),
+    });
+  }, [open, initialPos]);
+
+  const dragControls = useDragControls();
+
   if (!open || !mounted) return null;
+
+  const panelClass = isDesktop
+    ? 'pointer-events-auto fixed bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col'
+    : 'bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-[1100px] max-w-[96vw] max-h-[92vh] overflow-hidden flex flex-col';
+
+  const panelStyle: React.CSSProperties = isDesktop
+    ? {
+        left: initialPos?.left ?? 100,
+        top: initialPos?.top ?? 60,
+        width: 1100,
+        height: '82vh',
+        maxWidth: '96vw',
+        maxHeight: '92vh',
+        minWidth: 480,
+        minHeight: 320,
+        resize: 'both',
+        overflow: 'hidden',
+      }
+    : {};
 
   return createPortal(
     <AnimatePresence>
@@ -42,17 +80,38 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center"
-        onClick={onClose}
+        className={clsx(
+          'fixed inset-0 z-[60]',
+          isDesktop
+            ? 'pointer-events-none'
+            : 'bg-black/40 flex items-center justify-center',
+        )}
+        onClick={isDesktop ? undefined : onClose}
       >
         <motion.div
+          drag={isDesktop}
+          dragControls={dragControls}
+          dragListener={false}
+          dragMomentum={false}
+          dragElastic={0}
           initial={{ scale: 0.97, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.97, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-[1100px] max-w-[96vw] max-h-[92vh] overflow-hidden flex flex-col"
+          className={panelClass}
+          style={panelStyle}
         >
-          <header className="px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+          <header
+            onPointerDown={(e) => {
+              if (!isDesktop) return;
+              if ((e.target as HTMLElement).closest('button')) return;
+              dragControls.start(e);
+            }}
+            className={clsx(
+              'px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between select-none',
+              isDesktop && 'cursor-move',
+            )}
+          >
             <div>
               <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-indigo-500" />
@@ -60,6 +119,7 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
               </h2>
               <p className="text-xs text-gray-500">
                 {placements.length} placement{placements.length === 1 ? '' : 's'} · 12-month projection
+                {isDesktop && <span className="ml-2 text-gray-400">· drag header to move · drag corner to resize</span>}
               </p>
             </div>
             <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
