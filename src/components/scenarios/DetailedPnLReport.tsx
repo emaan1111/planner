@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useScenariosStore } from '@/store/scenariosStore';
 import { usePlacements, useScenarios } from '@/hooks/useScenariosQuery';
@@ -28,15 +29,20 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
 
   const report = useMemo(() => buildReport(placements), [placements]);
 
-  if (!open) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
+  if (!open || !mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+        className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center"
         onClick={onClose}
       >
         <motion.div
@@ -280,7 +286,8 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 
