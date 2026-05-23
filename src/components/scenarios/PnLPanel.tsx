@@ -106,11 +106,30 @@ export function PnLPanel() {
           </div>
         )}
 
-        <h3 className="text-xs uppercase tracking-wide text-gray-400 mt-4 mb-2">Compare Scenarios</h3>
+        <div className="mt-4 flex items-center justify-between mb-2">
+          <h3 className="text-xs uppercase tracking-wide text-gray-400">Compare Scenarios</h3>
+          {scenarios.length > 1 && (
+            <button
+              onClick={() => setIsReportOpen(true)}
+              className="text-[10px] text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200 font-medium"
+              title="See full comparison in the detailed report"
+            >
+              See full →
+            </button>
+          )}
+        </div>
         <div className="space-y-1">
-          {scenarios.map((s) => (
+          {scenarios.slice(0, 4).map((s) => (
             <ScenarioCompareRow key={s.id} scenarioId={s.id} name={s.name} isActive={s.id === activeScenarioId} />
           ))}
+          {scenarios.length > 4 && (
+            <button
+              onClick={() => setIsReportOpen(true)}
+              className="w-full text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 italic py-1"
+            >
+              +{scenarios.length - 4} more · open detailed report
+            </button>
+          )}
           {scenarios.length === 0 && (
             <p className="text-xs text-gray-400 italic">No scenarios to compare.</p>
           )}
@@ -118,7 +137,7 @@ export function PnLPanel() {
 
         <button
           onClick={() => setIsReportOpen(true)}
-          className="w-full mt-4 text-xs px-3 py-2 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-200 font-medium inline-flex items-center justify-center gap-2"
+          className="w-full mt-4 text-xs px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-medium inline-flex items-center justify-center gap-2 shadow-sm"
         >
           <Maximize2 className="w-3.5 h-3.5" />
           Open detailed report

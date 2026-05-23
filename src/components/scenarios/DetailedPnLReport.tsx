@@ -12,7 +12,7 @@ import {
   likelihoodLevel,
   CoursePlacement,
 } from '@/types/scenarios';
-import { X, TrendingUp, AlertTriangle, Users } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Users, GitCompare } from 'lucide-react';
 import clsx from 'clsx';
 
 interface DetailedPnLReportProps {
@@ -61,15 +61,48 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
             </button>
           </header>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6">
             {/* Headline totals */}
-            <section className="grid grid-cols-5 gap-3">
+            <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
               <Stat label="Revenue" value={fmt(report.totals.revenue)} tone="indigo" />
               <Stat label="Cost" value={fmt(report.totals.cost)} tone="rose" />
               <Stat label="Profit" value={fmt(report.totals.profit)} tone={report.totals.profit >= 0 ? 'emerald' : 'rose'} />
               <Stat label="EV" value={fmt(report.totals.expectedValue)} tone={report.totals.expectedValue >= 0 ? 'emerald' : 'rose'} />
               <Stat label="Members yr 1" value={`${Math.round(report.totals.membersYear1)}`} tone="indigo" />
             </section>
+
+            {/* Scenario comparison — full table of all scenarios */}
+            {scenarios.length > 1 && (
+              <section>
+                <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-2 flex items-center gap-1">
+                  <GitCompare className="w-3 h-3" /> Compare scenarios
+                </h3>
+                <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500">
+                      <tr>
+                        <Th>Scenario</Th>
+                        <Th>Placements</Th>
+                        <Th>Revenue</Th>
+                        <Th>Cost</Th>
+                        <Th>Profit</Th>
+                        <Th>EV</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenarios.map((s) => (
+                        <ScenarioCompareTableRow
+                          key={s.id}
+                          scenarioId={s.id}
+                          name={s.name}
+                          isActive={s.id === activeScenarioId}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
 
             {/* Per-course breakdown */}
             <section>
@@ -441,6 +474,47 @@ function LikelihoodPill({ level, percent }: { level: ReturnType<typeof likelihoo
     <span className={clsx('text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide', tones[level])}>
       {level.replace('-', ' ')} ({percent}%)
     </span>
+  );
+}
+
+function ScenarioCompareTableRow({
+  scenarioId,
+  name,
+  isActive,
+}: {
+  scenarioId: string;
+  name: string;
+  isActive: boolean;
+}) {
+  const { data: placements = [] } = usePlacements(scenarioId);
+  let revenue = 0;
+  let cost = 0;
+  let profit = 0;
+  let ev = 0;
+  for (const p of placements) {
+    const m = computePlacementMetrics(p);
+    revenue += computeRevenue(p);
+    cost += m.cost;
+    profit += m.profit;
+    ev += m.expectedValue;
+  }
+  return (
+    <tr
+      className={clsx(
+        'border-t border-gray-100 dark:border-gray-800',
+        isActive && 'bg-indigo-50/50 dark:bg-indigo-900/20',
+      )}
+    >
+      <Td className={clsx('font-medium', isActive && 'text-indigo-700 dark:text-indigo-200')}>
+        {name}
+        {isActive && <span className="ml-2 text-[9px] uppercase tracking-wide text-indigo-500">active</span>}
+      </Td>
+      <Td>{placements.length}</Td>
+      <Td>{fmt(revenue)}</Td>
+      <Td>{fmt(cost)}</Td>
+      <Td className={clsx(profit >= 0 ? 'text-emerald-600' : 'text-rose-600', 'font-semibold')}>{fmt(profit)}</Td>
+      <Td className={clsx(ev >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{fmt(ev)}</Td>
+    </tr>
   );
 }
 
