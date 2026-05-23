@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import {
   startOfMonth,
@@ -14,13 +14,14 @@ import {
   addMonths,
   parseISO,
 } from 'date-fns';
-import { useScenariosStore } from '@/store/scenariosStore';
+import { useScenariosStore, ScenarioViewMode } from '@/store/scenariosStore';
 import {
   usePlacements,
   useDeletePlacement,
   useScenarioEvents,
   useCreateScenarioEvent,
   useDeleteScenarioEvent,
+  useUpdatePlacement,
 } from '@/hooks/useScenariosQuery';
 import { useUndoStore } from './ScenarioUndoProvider';
 import { computePlacementMetrics, CoursePlacement, ScenarioEvent } from '@/types/scenarios';
@@ -33,10 +34,9 @@ import {
   Trash2,
   Plus,
   AlertTriangle,
+  Check,
 } from 'lucide-react';
 import clsx from 'clsx';
-
-type ScenarioViewMode = 'month' | 'three-month' | 'six-month' | 'year';
 
 interface ScenarioCalendarProps {
   scenarioId: string | null;
@@ -50,13 +50,120 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
     goToToday,
     setCurrentMonth,
     openPlacementEditor,
+    viewMode,
+    setViewMode,
+    customMonths,
+    toggleCustomMonth,
   } = useScenariosStore();
   const { data: placements = [] } = usePlacements(scenarioId ?? undefined);
   const { data: scenarioEvents = [] } = useScenarioEvents(scenarioId ?? undefined);
   const createEvent = useCreateScenarioEvent();
 
-  const [viewMode, setViewMode] = useState<ScenarioViewMode>('month');
   const [eventDraft, setEventDraft] = useState<{ date: Date } | null>(null);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+
+  // Edge-drag resize state
+  type ResizeKind = 'marketing' | 'delivery';
+  type ResizeState = {
+    placementId: string;
+    kind: ResizeKind;
+    edge: 'start' | 'end';
+    current: Date;
+  };
+  const [resize, setResize] = useState<ResizeState | null>(null);
+  const resizeRef = useRef<ResizeState | null>(null);
+  const placementsRef = useRef<CoursePlacement[]>(placements);
+  useEffect(() => {
+    resizeRef.current = resize;
+  }, [resize]);
+  useEffect(() => {
+    placementsRef.current = placements;
+  }, [placements]);
+
+  const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const updatePlacement = useUpdatePlacement();
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      let foundDate: Date | null = null;
+      cellRefs.current.forEach((cell, key) => {
+        const r = cell.getBoundingClientRect();
+        if (
+          e.clientX >= r.left &&
+          e.clientX <= r.right &&
+          e.clientY >= r.top &&
+          e.clientY <= r.bottom
+        ) {
+          foundDate = new Date(key);
+        }
+      });
+      if (foundDate) {
+        setResize((prev) => (prev ? { ...prev, current: foundDate! } : null));
+      }
+    };
+    const onUp = () => {
+      const cur = resizeRef.current;
+      if (!cur) return;
+      const placement = placementsRef.current.find((p) => p.id === cur.placementId);
+      setResize(null);
+      if (!placement) return;
+      const m = computePlacementMetrics(placement);
+      const target = stripTime(cur.current);
+      const updates: Partial<CoursePlacement> = {};
+      if (cur.kind === 'marketing') {
+        if (cur.edge === 'start') {
+          const marketingEndExclusive = stripTime(m.marketingEnd);
+          const newDur = Math.max(
+            1,
+            Math.round((marketingEndExclusive.getTime() - target.getTime()) / 86400000),
+          );
+          updates.startDate = target;
+          updates.marketingDurationDays = newDur;
+        } else {
+          const start = stripTime(m.marketingStart);
+          const newDur = Math.max(
+            1,
+            Math.round((target.getTime() - start.getTime()) / 86400000) + 1,
+          );
+          updates.marketingDurationDays = newDur;
+        }
+      } else {
+        if (cur.edge === 'start') {
+          const deliveryEnd = stripTime(m.deliveryEnd);
+          const newDur = Math.max(
+            1,
+            Math.round((deliveryEnd.getTime() - target.getTime()) / 86400000) + 1,
+          );
+          updates.deliveryStartDate = target;
+          updates.deliveryDurationDays = newDur;
+        } else {
+          const start = stripTime(m.deliveryStart);
+          const newDur = Math.max(
+            1,
+            Math.round((target.getTime() - start.getTime()) / 86400000) + 1,
+          );
+          updates.deliveryDurationDays = newDur;
+        }
+      }
+      updatePlacement.mutate({ id: placement.id, updates });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [updatePlacement]);
+
+  const handleResizeStart = (
+    placementId: string,
+    kind: ResizeKind,
+    edge: 'start' | 'end',
+    startDate: Date,
+  ) => {
+    setResize({ placementId, kind, edge, current: startDate });
+  };
 
   const monthDate = new Date(currentMonth);
 
@@ -72,9 +179,20 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
   }
 
   const monthsToRender =
-    viewMode === 'month' ? 1 : viewMode === 'three-month' ? 3 : viewMode === 'six-month' ? 6 : 12;
+    viewMode === 'month'
+      ? 1
+      : viewMode === 'three-month'
+        ? 3
+        : viewMode === 'six-month'
+          ? 6
+          : viewMode === 'year'
+            ? 12
+            : 0;
 
-  const monthOffsets = Array.from({ length: monthsToRender }, (_, i) => i);
+  const monthsToShow: Date[] =
+    viewMode === 'custom'
+      ? customMonths.map((m) => new Date(m.year, m.month, 1))
+      : Array.from({ length: monthsToRender }, (_, i) => addMonths(monthDate, i));
 
   const handleAddEvent = (date: Date) => {
     if (!scenarioId) return;
@@ -82,6 +200,16 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
   };
 
   const periodLabel = (() => {
+    if (viewMode === 'custom') {
+      if (monthsToShow.length === 0) return 'Custom · pick months';
+      if (monthsToShow.length === 1) return format(monthsToShow[0], 'MMMM yyyy');
+      const first = monthsToShow[0];
+      const last = monthsToShow[monthsToShow.length - 1];
+      const range = first.getFullYear() === last.getFullYear()
+        ? `${format(first, 'MMM')} – ${format(last, 'MMM yyyy')}`
+        : `${format(first, 'MMM yyyy')} – ${format(last, 'MMM yyyy')}`;
+      return `${range} · ${monthsToShow.length} mo`;
+    }
     if (monthsToRender === 1) return format(monthDate, 'MMMM yyyy');
     const last = addMonths(monthDate, monthsToRender - 1);
     if (monthDate.getFullYear() === last.getFullYear()) {
@@ -119,7 +247,26 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
           </button>
         </div>
 
-        <ViewModeSwitcher mode={viewMode} onChange={setViewMode} />
+        <div className="flex items-center gap-2">
+          {viewMode === 'custom' && (
+            <button
+              onClick={() => setIsPickerOpen(true)}
+              className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+              title="Pick months to show"
+            >
+              {customMonths.length === 0
+                ? 'Pick months'
+                : `${customMonths.length} month${customMonths.length === 1 ? '' : 's'}`}
+            </button>
+          )}
+          <ViewModeSwitcher
+            mode={viewMode}
+            onChange={(m) => {
+              setViewMode(m);
+              if (m === 'custom' && customMonths.length === 0) setIsPickerOpen(true);
+            }}
+          />
+        </div>
       </div>
 
       {/* Days-of-week header (only meaningful for single month view; others stack their own) */}
@@ -140,24 +287,49 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
           viewMode === 'three-month' && 'p-2 sm:p-3 grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3',
           viewMode === 'six-month' && 'p-2 sm:p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3',
           viewMode === 'year' && 'p-2 sm:p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3',
+          viewMode === 'custom' && 'p-2 sm:p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3',
         )}
       >
-        {monthOffsets.map((offset) => (
-          <MonthGrid
-            key={offset}
-            monthDate={addMonths(monthDate, offset)}
-            placements={placements}
-            scenarioEvents={scenarioEvents}
-            compact={viewMode !== 'month'}
-            onClickMonthLabel={(d) => {
-              setCurrentMonth(d);
-              setViewMode('month');
-            }}
-            onClickPlacement={openPlacementEditor}
-            onAddEvent={handleAddEvent}
-          />
-        ))}
+        {viewMode === 'custom' && monthsToShow.length === 0 ? (
+          <div className="col-span-full text-center text-sm text-gray-400 py-12">
+            <p className="mb-3">No months selected.</p>
+            <button
+              onClick={() => setIsPickerOpen(true)}
+              className="px-3 py-1.5 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              Pick months
+            </button>
+          </div>
+        ) : (
+          monthsToShow.map((d) => (
+            <MonthGrid
+              key={`${d.getFullYear()}-${d.getMonth()}`}
+              monthDate={d}
+              placements={placements}
+              scenarioEvents={scenarioEvents}
+              compact={viewMode !== 'month'}
+              onClickMonthLabel={(target) => {
+                setCurrentMonth(target);
+                setViewMode('month');
+              }}
+              onClickPlacement={openPlacementEditor}
+              onAddEvent={handleAddEvent}
+              cellRefs={cellRefs}
+              resize={resize}
+              onResizeStart={handleResizeStart}
+            />
+          ))
+        )}
       </div>
+
+      {isPickerOpen && (
+        <CustomMonthPicker
+          anchorYear={monthDate.getFullYear()}
+          selected={customMonths}
+          onToggle={toggleCustomMonth}
+          onClose={() => setIsPickerOpen(false)}
+        />
+      )}
 
       {eventDraft && scenarioId && (
         <NewEventDialog
@@ -376,6 +548,7 @@ function ViewModeSwitcher({ mode, onChange }: { mode: ScenarioViewMode; onChange
     { id: 'three-month', label: '3 mo' },
     { id: 'six-month', label: '6 mo' },
     { id: 'year', label: 'Year' },
+    { id: 'custom', label: 'Custom' },
   ];
   return (
     <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded p-0.5">
@@ -397,6 +570,14 @@ function ViewModeSwitcher({ mode, onChange }: { mode: ScenarioViewMode; onChange
   );
 }
 
+type ResizeKind = 'marketing' | 'delivery';
+type ResizePreview = {
+  placementId: string;
+  kind: ResizeKind;
+  edge: 'start' | 'end';
+  current: Date;
+} | null;
+
 interface MonthGridProps {
   monthDate: Date;
   placements: CoursePlacement[];
@@ -405,6 +586,9 @@ interface MonthGridProps {
   onClickMonthLabel: (date: Date) => void;
   onClickPlacement: (id: string) => void;
   onAddEvent: (date: Date) => void;
+  cellRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
+  resize: ResizePreview;
+  onResizeStart: (placementId: string, kind: ResizeKind, edge: 'start' | 'end', startDate: Date) => void;
 }
 
 function MonthGrid({
@@ -415,6 +599,9 @@ function MonthGrid({
   onClickMonthLabel,
   onClickPlacement,
   onAddEvent,
+  cellRefs,
+  resize,
+  onResizeStart,
 }: MonthGridProps) {
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
@@ -442,10 +629,20 @@ function MonthGrid({
 
   for (const placement of placements) {
     const m = computePlacementMetrics(placement);
-    const marketingStart = stripTime(m.marketingStart);
-    const marketingEndExclusive = stripTime(m.marketingEnd);
-    const deliveryStart = stripTime(m.deliveryStart);
-    const deliveryEndInclusive = stripTime(m.deliveryEnd);
+    let marketingStart = stripTime(m.marketingStart);
+    let marketingEndExclusive = stripTime(m.marketingEnd);
+    let deliveryStart = stripTime(m.deliveryStart);
+    let deliveryEndInclusive = stripTime(m.deliveryEnd);
+    if (resize && resize.placementId === placement.id) {
+      const target = stripTime(resize.current);
+      if (resize.kind === 'marketing' && resize.edge === 'start') marketingStart = target;
+      else if (resize.kind === 'marketing' && resize.edge === 'end') marketingEndExclusive = addDays(target, 1);
+      else if (resize.kind === 'delivery' && resize.edge === 'start') deliveryStart = target;
+      else if (resize.kind === 'delivery' && resize.edge === 'end') deliveryEndInclusive = target;
+      // clamp so previews stay valid
+      if (marketingEndExclusive <= marketingStart) marketingEndExclusive = addDays(marketingStart, 1);
+      if (deliveryEndInclusive < deliveryStart) deliveryEndInclusive = deliveryStart;
+    }
     for (const day of days) {
       const stripped = stripTime(day);
       if (stripped >= marketingStart && stripped < marketingEndExclusive) {
@@ -513,6 +710,8 @@ function MonthGrid({
             compact={compact}
             onClickPlacement={onClickPlacement}
             onAddEvent={onAddEvent}
+            cellRefs={cellRefs}
+            onResizeStart={onResizeStart}
           />
         ))}
       </div>
@@ -527,6 +726,8 @@ function CalendarDay({
   compact,
   onClickPlacement,
   onAddEvent,
+  cellRefs,
+  onResizeStart,
 }: {
   day: Date;
   inMonth: boolean;
@@ -537,6 +738,8 @@ function CalendarDay({
   compact: boolean;
   onClickPlacement: (id: string) => void;
   onAddEvent: (date: Date) => void;
+  cellRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
+  onResizeStart: (placementId: string, kind: 'marketing' | 'delivery', edge: 'start' | 'end', startDate: Date) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: `scenario-day-${day.toISOString()}`,
@@ -544,9 +747,16 @@ function CalendarDay({
   });
   const isToday = isSameDay(day, new Date());
 
+  const dayKey = day.toISOString();
+  const setRefs = (el: HTMLDivElement | null) => {
+    setNodeRef(el);
+    if (el) cellRefs.current.set(dayKey, el);
+    else cellRefs.current.delete(dayKey);
+  };
+
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       className={clsx(
         'bg-white dark:bg-gray-950 flex flex-col gap-1 transition-colors group',
         compact ? 'min-h-[42px] p-0.5' : 'min-h-[64px] sm:min-h-[100px] p-1',
@@ -588,7 +798,9 @@ function CalendarDay({
                 isStart={seg.isStart}
                 isEnd={seg.isEnd}
                 compact={compact}
+                day={day}
                 onClick={() => onClickPlacement(seg.placement.id)}
+                onResizeStart={onResizeStart}
               />
             );
           }
@@ -613,14 +825,18 @@ function PlacementSegment({
   isStart,
   isEnd,
   compact,
+  day,
   onClick,
+  onResizeStart,
 }: {
   placement: CoursePlacement;
   kind: 'marketing' | 'delivery';
   isStart: boolean;
   isEnd: boolean;
   compact: boolean;
+  day: Date;
   onClick: () => void;
+  onResizeStart: (placementId: string, kind: 'marketing' | 'delivery', edge: 'start' | 'end', startDate: Date) => void;
 }) {
   const deletePlacement = useDeletePlacement();
   const createPlacement = useCreatePlacement();
@@ -649,7 +865,7 @@ function PlacementSegment({
         onClick();
       }}
       className={clsx(
-        'truncate cursor-pointer group/seg flex items-center gap-1',
+        'relative truncate cursor-pointer group/seg flex items-center gap-1',
         compact ? 'text-[8px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5',
         isMarketing
           ? clsx(cls.bg, 'text-white font-semibold border-y border-y-black/20 shadow-sm')
@@ -659,6 +875,40 @@ function PlacementSegment({
       )}
       title={`${isMarketing ? 'Marketing' : 'Delivery'} – ${courseName}${incompleteHint}`}
     >
+      {isStart && (
+        <div
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onResizeStart(placement.id, kind, 'start', day);
+          }}
+          className={clsx(
+            'absolute left-0 top-0 bottom-0 cursor-ew-resize z-10',
+            compact ? 'w-1' : 'w-1.5',
+            'opacity-0 group-hover/seg:opacity-100',
+            isMarketing ? 'bg-black/30' : 'bg-gray-500/40',
+            'rounded-l',
+          )}
+          title="Drag to resize start"
+        />
+      )}
+      {isEnd && (
+        <div
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onResizeStart(placement.id, kind, 'end', day);
+          }}
+          className={clsx(
+            'absolute right-0 top-0 bottom-0 cursor-ew-resize z-10',
+            compact ? 'w-1' : 'w-1.5',
+            'opacity-0 group-hover/seg:opacity-100',
+            isMarketing ? 'bg-black/30' : 'bg-gray-500/40',
+            'rounded-r',
+          )}
+          title="Drag to resize end"
+        />
+      )}
       {isMarketing && isStart && (
         <span
           className={clsx(
@@ -788,6 +1038,89 @@ function EventSegmentBlock({
           <Trash2 className="w-2.5 h-2.5" />
         </button>
       )}
+    </div>
+  );
+}
+
+function CustomMonthPicker({
+  anchorYear,
+  selected,
+  onToggle,
+  onClose,
+}: {
+  anchorYear: number;
+  selected: { year: number; month: number }[];
+  onToggle: (year: number, month: number) => void;
+  onClose: () => void;
+}) {
+  const [year, setYear] = useState(anchorYear);
+  const isSelected = (y: number, m: number) =>
+    selected.some((s) => s.year === y && s.month === m);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md border border-gray-200 dark:border-gray-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Pick months to show
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </header>
+        <div className="px-5 py-3 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+          <button
+            onClick={() => setYear((y) => y - 1)}
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            aria-label="Previous year"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{year}</span>
+          <button
+            onClick={() => setYear((y) => y + 1)}
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            aria-label="Next year"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 grid grid-cols-3 gap-2">
+          {Array.from({ length: 12 }, (_, m) => {
+            const active = isSelected(year, m);
+            return (
+              <button
+                key={m}
+                onClick={() => onToggle(year, m)}
+                className={clsx(
+                  'px-2 py-2 text-xs rounded border flex items-center justify-center gap-1 transition-colors',
+                  active
+                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200',
+                )}
+              >
+                {active && <Check className="w-3 h-3" />}
+                {format(new Date(year, m, 1), 'MMM')}
+              </button>
+            );
+          })}
+        </div>
+        <footer className="px-5 py-3 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between text-xs">
+          <span className="text-gray-500">
+            {selected.length} month{selected.length === 1 ? '' : 's'} selected
+          </span>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+          >
+            Done
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

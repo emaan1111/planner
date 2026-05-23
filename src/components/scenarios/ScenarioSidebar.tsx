@@ -38,7 +38,7 @@ export function ScenarioSidebar() {
   const duplicateScenario = useDuplicateScenario();
   const updateScenario = useUpdateScenario();
 
-  const { activeScenarioId, setActiveScenario, sidebarOpen, setSidebarOpen } = useScenariosStore();
+  const { activeScenarioId, setActiveScenario, sidebarOpen, setSidebarOpen, leftRailCollapsed } = useScenariosStore();
   const [openFolderIds, setOpenFolderIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -101,8 +101,10 @@ export function ScenarioSidebar() {
           // Mobile: slide-over drawer
           'fixed inset-y-0 left-0 z-40 w-[82vw] max-w-xs transform transition-transform duration-200 ease-out shadow-xl',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          // Desktop: static rail
-          'md:relative md:translate-x-0 md:shadow-none md:w-64 md:flex-shrink-0',
+          // Desktop: static rail (hidden when collapsed)
+          leftRailCollapsed
+            ? 'md:hidden'
+            : 'md:relative md:translate-x-0 md:shadow-none md:w-64 md:flex-shrink-0',
         )}
       >
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">

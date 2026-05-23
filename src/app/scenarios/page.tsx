@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Menu, BookOpen, X } from 'lucide-react';
+import { ArrowLeft, Menu, BookOpen, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { ScenarioSidebar } from '@/components/scenarios/ScenarioSidebar';
 import { ScenarioCalendar } from '@/components/scenarios/ScenarioCalendar';
 import { CourseLibraryPanel } from '@/components/scenarios/CourseLibraryPanel';
@@ -22,6 +22,10 @@ export default function ScenariosPage() {
     setSidebarOpen,
     rightPanelOpen,
     setRightPanelOpen,
+    leftRailCollapsed,
+    setLeftRailCollapsed,
+    rightRailCollapsed,
+    setRightRailCollapsed,
   } = useScenariosStore();
 
   return (
@@ -37,6 +41,14 @@ export default function ScenariosPage() {
             aria-label="Open scenarios list"
           >
             <Menu className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setLeftRailCollapsed(!leftRailCollapsed)}
+            className="hidden md:inline-flex p-1.5 -ml-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+            title={leftRailCollapsed ? 'Show scenarios sidebar' : 'Hide scenarios sidebar'}
+            aria-label={leftRailCollapsed ? 'Show scenarios sidebar' : 'Hide scenarios sidebar'}
+          >
+            {leftRailCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
           <Link
             href="/"
@@ -65,6 +77,14 @@ export default function ScenariosPage() {
               <BookOpen className="w-3.5 h-3.5" />
               <span className="text-[11px]">Library &amp; P&amp;L</span>
             </button>
+            <button
+              onClick={() => setRightRailCollapsed(!rightRailCollapsed)}
+              className="hidden lg:inline-flex p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+              title={rightRailCollapsed ? 'Show library & P&L sidebar' : 'Hide library & P&L sidebar'}
+              aria-label={rightRailCollapsed ? 'Show library & P&L sidebar' : 'Hide library & P&L sidebar'}
+            >
+              {rightRailCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
+            </button>
           </div>
         </header>
 
@@ -91,8 +111,10 @@ export default function ScenariosPage() {
               // Mobile/tablet: slide-over drawer from right
               'fixed inset-y-0 right-0 z-40 w-[88vw] max-w-sm transform transition-transform duration-200 ease-out shadow-xl',
               rightPanelOpen ? 'translate-x-0' : 'translate-x-full',
-              // Desktop (lg+): static rail
-              'lg:relative lg:translate-x-0 lg:shadow-none lg:w-80 lg:flex-shrink-0',
+              // Desktop (lg+): static rail (hidden when collapsed)
+              rightRailCollapsed
+                ? 'lg:hidden'
+                : 'lg:relative lg:translate-x-0 lg:shadow-none lg:w-80 lg:flex-shrink-0',
             )}
           >
             <button

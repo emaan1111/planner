@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+export type ScenarioViewMode = 'month' | 'three-month' | 'six-month' | 'year' | 'custom';
+
+export interface ScenarioCustomMonth {
+  year: number;
+  month: number; // 0-11
+}
+
 interface ScenariosUIState {
   activeScenarioId: string | null;
   activeFolderId: string | null;
@@ -11,6 +18,10 @@ interface ScenariosUIState {
   isNewScenarioOpen: boolean;
   sidebarOpen: boolean; // mobile scenarios drawer
   rightPanelOpen: boolean; // mobile library + P&L drawer
+  leftRailCollapsed: boolean; // desktop scenarios rail hidden
+  rightRailCollapsed: boolean; // desktop library + P&L rail hidden
+  viewMode: ScenarioViewMode;
+  customMonths: ScenarioCustomMonth[];
 
   setActiveScenario: (id: string | null) => void;
   setActiveFolder: (id: string | null) => void;
@@ -30,6 +41,11 @@ interface ScenariosUIState {
 
   setSidebarOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
+  setLeftRailCollapsed: (collapsed: boolean) => void;
+  setRightRailCollapsed: (collapsed: boolean) => void;
+  setViewMode: (mode: ScenarioViewMode) => void;
+  setCustomMonths: (months: ScenarioCustomMonth[]) => void;
+  toggleCustomMonth: (year: number, month: number) => void;
 }
 
 function startOfMonth(d: Date): Date {
@@ -48,6 +64,10 @@ export const useScenariosStore = create<ScenariosUIState>()(
       isNewScenarioOpen: false,
       sidebarOpen: false,
       rightPanelOpen: false,
+      leftRailCollapsed: false,
+      rightRailCollapsed: false,
+      viewMode: 'month',
+      customMonths: [],
 
       setActiveScenario: (id) => set({ activeScenarioId: id, sidebarOpen: false }),
       setActiveFolder: (id) => set({ activeFolderId: id }),
@@ -75,6 +95,19 @@ export const useScenariosStore = create<ScenariosUIState>()(
 
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
+      setLeftRailCollapsed: (collapsed) => set({ leftRailCollapsed: collapsed }),
+      setRightRailCollapsed: (collapsed) => set({ rightRailCollapsed: collapsed }),
+      setViewMode: (mode) => set({ viewMode: mode }),
+      setCustomMonths: (months) => set({ customMonths: months }),
+      toggleCustomMonth: (year, month) => {
+        const current = get().customMonths;
+        const idx = current.findIndex((m) => m.year === year && m.month === month);
+        if (idx >= 0) {
+          set({ customMonths: current.filter((_, i) => i !== idx) });
+        } else {
+          set({ customMonths: [...current, { year, month }].sort((a, b) => a.year - b.year || a.month - b.month) });
+        }
+      },
     }),
     {
       name: 'planner-scenarios-ui',
@@ -88,6 +121,10 @@ export const useScenariosStore = create<ScenariosUIState>()(
         activeScenarioId: state.activeScenarioId,
         activeFolderId: state.activeFolderId,
         currentMonth: state.currentMonth,
+        leftRailCollapsed: state.leftRailCollapsed,
+        rightRailCollapsed: state.rightRailCollapsed,
+        viewMode: state.viewMode,
+        customMonths: state.customMonths,
       } as ScenariosUIState),
     },
   ),
