@@ -596,10 +596,11 @@ function ScenarioCompareTableRow({
 }
 
 // Aggregates a scenario's placements into the headline metrics shown in the
-// compare table. Membership revenue is bucketed per period via
-// membershipRevenueStream so the 6/12-month windows include only the portion
-// that lands inside that window from today. One-off revenue lands in its
-// delivery-start month.
+// compare table. For memberships, revenue is projected period-by-period using
+// the placement's churn rate (NOT capped at retentionMonths), so lifetime
+// reflects the true churn-driven sum and the 6/12-month windows only count
+// periods that land inside those calendar windows from today. One-off revenue
+// lands entirely in its delivery-start month.
 function computeScenarioCompareStats(placements: CoursePlacement[]) {
   const now = new Date();
   const sixMonthsOut = new Date(now.getFullYear(), now.getMonth() + 6, 1);
@@ -615,26 +616,30 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
 
   for (const p of placements) {
     const m = computePlacementMetrics(p);
-    const rev = computeRevenue(p);
-    revenue += rev;
     cost += m.cost;
-    profit += m.profit;
     ev += m.expectedValue;
 
     if (p.isMembership) {
-      const stream = membershipRevenueStream(p);
+      const projected = projectChurnStream(p, 120);
+      let lifetimeRev = 0;
       let activeSum = 0;
       let activeCount = 0;
-      for (const row of stream) {
+      for (const row of projected) {
+        lifetimeRev += row.revenue;
         if (row.date >= now && row.date < twelveMonthsOut) {
-          activeSum += row.activePaidMembers;
-          activeCount += 1;
           revenue12mo += row.revenue;
+          activeSum += row.active;
+          activeCount += 1;
           if (row.date < sixMonthsOut) revenue6mo += row.revenue;
         }
       }
+      revenue += lifetimeRev;
+      profit += lifetimeRev - m.cost;
       members += activeCount > 0 ? activeSum / activeCount : 0;
     } else {
+      const rev = computeRevenue(p);
+      revenue += rev;
+      profit += m.profit;
       if (m.deliveryStart >= now && m.deliveryStart < twelveMonthsOut) {
         revenue12mo += rev;
         if (m.deliveryStart < sixMonthsOut) revenue6mo += rev;
@@ -643,6 +648,35 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
     }
   }
   return { revenue, cost, profit, ev, revenue6mo, revenue12mo, members };
+}
+
+// Membership projection driven purely by churn (independent of retentionMonths).
+// Walks period-by-period from delivery start, applying churn each period, and
+// stops once the active cohort effectively dies out or the horizon is reached.
+function projectChurnStream(p: CoursePlacement, maxPeriods: number) {
+  const r = Math.min(1, Math.max(0, p.monthlyChurnPercent / 100));
+  const periodDays = p.courseTemplate?.billingPeriodDays ?? 30;
+  const conv = p.trialToPaidConversionPercent / 100;
+  const trialPeriods =
+    p.entryMode === 'trial-to-paid' ? Math.ceil(p.trialDurationDays / periodDays) : 0;
+  const out: { date: Date; active: number; revenue: number }[] = [];
+  let active = 0;
+  for (let k = 0; k < maxPeriods; k++) {
+    const date = new Date(p.deliveryStartDate);
+    date.setDate(date.getDate() + k * periodDays);
+    if (p.entryMode === 'trial-to-paid') {
+      if (k === trialPeriods) active = p.projectedRegistrations * conv;
+      else if (k > trialPeriods) active = Math.max(0, active - active * r);
+    } else {
+      if (k === 0) active = p.projectedRegistrations;
+      else active = Math.max(0, active - active * r);
+    }
+    const revenue = active * p.pricePerChild;
+    out.push({ date, active, revenue });
+    if (k > 24 && active < 0.5) break;
+    if (r >= 1 && k > trialPeriods) break;
+  }
+  return out;
 }
 
 function RiskPill({ level }: { level: ReturnType<typeof riskLevel> }) {
