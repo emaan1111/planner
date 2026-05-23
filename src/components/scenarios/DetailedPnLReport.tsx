@@ -12,6 +12,9 @@ import {
   riskLevel,
   likelihoodLevel,
   CoursePlacement,
+  effectiveCohort,
+  effectivePrice,
+  effectiveChurn,
 } from '@/types/scenarios';
 import { X, TrendingUp, AlertTriangle, Users, GitCompare } from 'lucide-react';
 import clsx from 'clsx';
@@ -286,8 +289,13 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
                         <div>
                           <span className="font-semibold text-gray-700 dark:text-gray-200">{m.courseName}</span>
                           <span className="ml-2 text-[10px] uppercase tracking-wide text-gray-500">
-                            {m.entryMode === 'trial-to-paid' ? 'Trial → Paid' : 'Direct entry'} · {m.churn}% churn · ${m.price}/period
+                            {m.entryMode === 'trial-to-paid' ? 'Trial → Paid' : 'Direct entry'} · {Math.round(m.cohort)} cohort · {m.churn}% churn · ${m.price}/period
                           </span>
+                          {m.usingTemplateDefault && (
+                            <span className="ml-2 text-[10px] text-amber-600 dark:text-amber-300">
+                              · using template default cohort
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500">
                           Lifetime revenue: <span className="font-semibold text-gray-700 dark:text-gray-200">{fmt(m.lifetimeRevenue)}</span>
@@ -384,6 +392,8 @@ interface Report {
     entryMode: 'direct' | 'trial-to-paid';
     churn: number;
     price: number;
+    cohort: number;
+    usingTemplateDefault: boolean;
     lifetimeRevenue: number;
     stream: ReturnType<typeof membershipRevenueStream>;
   }>;
@@ -429,8 +439,10 @@ function buildReport(placements: CoursePlacement[]): Report {
         placementId: p.id,
         courseName: p.courseTemplate?.name ?? 'Course',
         entryMode: p.entryMode,
-        churn: p.monthlyChurnPercent,
-        price: p.pricePerChild,
+        churn: effectiveChurn(p),
+        price: effectivePrice(p),
+        cohort: effectiveCohort(p),
+        usingTemplateDefault: p.projectedRegistrations <= 0,
         lifetimeRevenue: lifetime,
         stream,
       });
@@ -654,7 +666,9 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
 // Walks period-by-period from delivery start, applying churn each period, and
 // stops once the active cohort effectively dies out or the horizon is reached.
 function projectChurnStream(p: CoursePlacement, maxPeriods: number) {
-  const r = Math.min(1, Math.max(0, p.monthlyChurnPercent / 100));
+  const cohort = effectiveCohort(p);
+  const price = effectivePrice(p);
+  const r = Math.min(1, Math.max(0, effectiveChurn(p) / 100));
   const periodDays = p.courseTemplate?.billingPeriodDays ?? 30;
   const conv = p.trialToPaidConversionPercent / 100;
   const trialPeriods =
@@ -665,13 +679,13 @@ function projectChurnStream(p: CoursePlacement, maxPeriods: number) {
     const date = new Date(p.deliveryStartDate);
     date.setDate(date.getDate() + k * periodDays);
     if (p.entryMode === 'trial-to-paid') {
-      if (k === trialPeriods) active = p.projectedRegistrations * conv;
+      if (k === trialPeriods) active = cohort * conv;
       else if (k > trialPeriods) active = Math.max(0, active - active * r);
     } else {
-      if (k === 0) active = p.projectedRegistrations;
+      if (k === 0) active = cohort;
       else active = Math.max(0, active - active * r);
     }
-    const revenue = active * p.pricePerChild;
+    const revenue = active * price;
     out.push({ date, active, revenue });
     if (k > 24 && active < 0.5) break;
     if (r >= 1 && k > trialPeriods) break;

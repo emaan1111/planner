@@ -99,6 +99,30 @@ export interface PlacementMetrics {
   deliveryEnd: Date; // inclusive last day
 }
 
+// Falls back to the linked course template's default when the placement's own
+// value is 0/empty. This lets membership projections render meaningful numbers
+// even before the user has filled in placement-specific overrides — the
+// incomplete warning still flags that the placement is using defaults.
+export function effectiveCohort(p: CoursePlacement): number {
+  if (p.projectedRegistrations > 0) return p.projectedRegistrations;
+  return p.courseTemplate?.defaultProjectedRegistrations ?? 0;
+}
+
+export function effectivePrice(p: CoursePlacement): number {
+  if (p.pricePerChild > 0) return p.pricePerChild;
+  return p.courseTemplate?.defaultPricePerChild ?? 0;
+}
+
+export function effectiveChurn(p: CoursePlacement): number {
+  if (p.monthlyChurnPercent > 0) return p.monthlyChurnPercent;
+  return p.courseTemplate?.defaultMonthlyChurnPercent ?? 0;
+}
+
+export function effectiveRetention(p: CoursePlacement): number {
+  if (p.retentionMonths > 0) return p.retentionMonths;
+  return p.courseTemplate?.defaultRetentionMonths ?? 12;
+}
+
 export function computePlacementMetrics(p: CoursePlacement): PlacementMetrics {
   const revenue = computeRevenue(p);
   const cost = p.costPerRun;
@@ -122,25 +146,27 @@ export function computePlacementMetrics(p: CoursePlacement): PlacementMetrics {
 
 // Returns the number of paying members after the trial funnel converts.
 function paidCohort(p: CoursePlacement): number {
+  const cohort = effectiveCohort(p);
   if (p.entryMode === 'trial-to-paid') {
-    return p.projectedRegistrations * (p.trialToPaidConversionPercent / 100);
+    return cohort * (p.trialToPaidConversionPercent / 100);
   }
-  return p.projectedRegistrations;
+  return cohort;
 }
 
 // One-off course: simple price × registrations (no trial funnel — registrations already pay).
 // Membership: trial→paid funnel then geometric churn-adjusted revenue across N billing periods.
 export function computeRevenue(p: CoursePlacement): number {
+  const price = effectivePrice(p);
   if (!p.isMembership) {
-    return p.pricePerChild * p.projectedRegistrations;
+    return price * effectiveCohort(p);
   }
   const cohort = paidCohort(p);
-  const r = p.monthlyChurnPercent / 100;
-  const N = p.retentionMonths;
-  if (r <= 0) return p.pricePerChild * cohort * N;
-  if (r >= 1) return p.pricePerChild * cohort;
+  const r = effectiveChurn(p) / 100;
+  const N = effectiveRetention(p);
+  if (r <= 0) return price * cohort * N;
+  if (r >= 1) return price * cohort;
   const factor = (1 - Math.pow(1 - r, N)) / r;
-  return p.pricePerChild * cohort * factor;
+  return price * cohort * factor;
 }
 
 // Per-period stream: signups, trial users, paid members, churned, active, revenue.
@@ -156,8 +182,10 @@ export interface MembershipPeriodProjection {
 
 export function membershipRevenueStream(p: CoursePlacement): MembershipPeriodProjection[] {
   if (!p.isMembership) return [];
-  const r = p.monthlyChurnPercent / 100;
-  const N = p.retentionMonths;
+  const cohort = effectiveCohort(p);
+  const price = effectivePrice(p);
+  const r = effectiveChurn(p) / 100;
+  const N = effectiveRetention(p);
   const periodDays = p.courseTemplate?.billingPeriodDays ?? 30;
   const conv = p.trialToPaidConversionPercent / 100;
   const trialPeriods = p.entryMode === 'trial-to-paid' ? Math.ceil(p.trialDurationDays / periodDays) : 0;
@@ -172,9 +200,9 @@ export function membershipRevenueStream(p: CoursePlacement): MembershipPeriodPro
     if (p.entryMode === 'trial-to-paid') {
       if (k < trialPeriods) {
         // Cohort is still in trial — no revenue yet
-        trialMembers = p.projectedRegistrations;
+        trialMembers = cohort;
       } else if (k === trialPeriods) {
-        newPaid = p.projectedRegistrations * conv;
+        newPaid = cohort * conv;
         activePaid = newPaid;
       } else {
         const churn = activePaid * r;
@@ -182,7 +210,7 @@ export function membershipRevenueStream(p: CoursePlacement): MembershipPeriodPro
       }
     } else {
       if (k === 0) {
-        newPaid = p.projectedRegistrations;
+        newPaid = cohort;
         activePaid = newPaid;
       } else {
         const churn = activePaid * r;
@@ -190,7 +218,7 @@ export function membershipRevenueStream(p: CoursePlacement): MembershipPeriodPro
       }
     }
 
-    const revenue = activePaid * p.pricePerChild;
+    const revenue = activePaid * price;
     // churn at this period = previous active * r when applicable
     const churnedMembers = k > trialPeriods ? activePaid * r : 0;
 
@@ -210,7 +238,7 @@ export function membershipRevenueStream(p: CoursePlacement): MembershipPeriodPro
 // Risk and likelihood buckets used in the detailed report.
 export function riskLevel(p: CoursePlacement): 'low' | 'medium' | 'high' {
   // Combine financial exposure and a risks-text presence as a coarse score.
-  const exposure = p.costPerRun - p.pricePerChild * p.projectedRegistrations * (p.likelihoodPercent / 100);
+  const exposure = p.costPerRun - effectivePrice(p) * effectiveCohort(p) * (p.likelihoodPercent / 100);
   const hasNoted = (p.risks ?? '').trim().length > 0;
   if (exposure > 2000 || (hasNoted && exposure > 500)) return 'high';
   if (exposure > 0 || hasNoted) return 'medium';
