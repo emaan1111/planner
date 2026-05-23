@@ -40,8 +40,10 @@ import {
   Eye,
   EyeOff,
   StickyNote,
+  Printer,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { PrintableSchedule } from './PrintableSchedule';
 
 interface ScenarioCalendarProps {
   scenarioId: string | null;
@@ -73,6 +75,7 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
 
   const [eventDraft, setEventDraft] = useState<{ date: Date } | null>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
 
   // Edge-drag resize state
   type ResizeKind = 'marketing' | 'delivery';
@@ -278,6 +281,14 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
             )}
           </button>
           <button
+            onClick={() => setIsPrintOpen(true)}
+            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+            title="Open printable course schedule (Save as PDF from the print dialog)"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Print</span>
+          </button>
+          <button
             onClick={toggleDelivery}
             className={clsx(
               'inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors',
@@ -386,6 +397,13 @@ export function ScenarioCalendar({ scenarioId }: ScenarioCalendarProps) {
           onClose={() => setIsPickerOpen(false)}
         />
       )}
+
+      <PrintableSchedule
+        open={isPrintOpen}
+        onClose={() => setIsPrintOpen(false)}
+        scenarioId={scenarioId}
+        scenarioName={activeScenario?.name ?? 'Scenario'}
+      />
 
       {eventDraft && scenarioId && (
         <NewEventDialog
