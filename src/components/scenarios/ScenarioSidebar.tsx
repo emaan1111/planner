@@ -12,8 +12,10 @@ import {
   useDuplicateScenario,
   useUpdateScenario,
   useReorderScenarios,
+  useAllPlacements,
 } from '@/hooks/useScenariosQuery';
 import { useScenariosStore } from '@/store/scenariosStore';
+import { computeRevenue } from '@/types/scenarios';
 import {
   ChevronDown,
   ChevronRight,
@@ -26,6 +28,8 @@ import {
   Calendar,
   X,
   GripVertical,
+  Star,
+  DollarSign,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -41,7 +45,29 @@ export function ScenarioSidebar() {
   const updateScenario = useUpdateScenario();
   const reorderScenarios = useReorderScenarios();
 
-  const { activeScenarioId, setActiveScenario, sidebarOpen, setSidebarOpen, leftRailCollapsed } = useScenariosStore();
+  const {
+    activeScenarioId,
+    setActiveScenario,
+    sidebarOpen,
+    setSidebarOpen,
+    leftRailCollapsed,
+    showSidebarRevenue,
+    toggleSidebarRevenue,
+  } = useScenariosStore();
+  // Only fetch placements when the revenue toggle is on, so toggling off avoids
+  // the cost.
+  const { data: allPlacements = [] } = useAllPlacements(showSidebarRevenue);
+  const revenueByScenario = new Map<string, number>();
+  if (showSidebarRevenue) {
+    for (const p of allPlacements) {
+      revenueByScenario.set(p.scenarioId, (revenueByScenario.get(p.scenarioId) ?? 0) + computeRevenue(p));
+    }
+  }
+  const formatRevenue = (n: number) => {
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
+    return `$${Math.round(n)}`;
+  };
   const [openFolderIds, setOpenFolderIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -167,6 +193,18 @@ export function ScenarioSidebar() {
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Scenarios</h2>
         <div className="flex items-center gap-1">
+          <button
+            onClick={toggleSidebarRevenue}
+            title={showSidebarRevenue ? 'Hide lifetime revenue' : 'Show lifetime revenue'}
+            className={clsx(
+              'p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800',
+              showSidebarRevenue
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-gray-500',
+            )}
+          >
+            <DollarSign className="w-4 h-4" />
+          </button>
           <button
             onClick={handleAddFolder}
             title="New folder"
@@ -318,6 +356,13 @@ export function ScenarioSidebar() {
                       id={s.id}
                       name={s.name}
                       active={activeScenarioId === s.id}
+                      isBest={s.isBest}
+                      onToggleBest={() =>
+                        updateScenario.mutate({ id: s.id, updates: { isBest: !s.isBest } })
+                      }
+                      lifetimeRevenue={
+                        showSidebarRevenue ? formatRevenue(revenueByScenario.get(s.id) ?? 0) : null
+                      }
                       renaming={renamingId === s.id}
                       renameValue={renameValue}
                       onRenameChange={setRenameValue}
@@ -403,6 +448,13 @@ export function ScenarioSidebar() {
                 id={s.id}
                 name={s.name}
                 active={activeScenarioId === s.id}
+                isBest={s.isBest}
+                onToggleBest={() =>
+                  updateScenario.mutate({ id: s.id, updates: { isBest: !s.isBest } })
+                }
+                lifetimeRevenue={
+                  showSidebarRevenue ? formatRevenue(revenueByScenario.get(s.id) ?? 0) : null
+                }
                 renaming={renamingId === s.id}
                 renameValue={renameValue}
                 onRenameChange={setRenameValue}
@@ -458,6 +510,9 @@ interface ScenarioRowProps {
   id: string;
   name: string;
   active: boolean;
+  isBest: boolean;
+  onToggleBest: () => void;
+  lifetimeRevenue: string | null;
   renaming: boolean;
   renameValue: string;
   onRenameChange: (v: string) => void;
@@ -480,6 +535,9 @@ function ScenarioRow({
   id,
   name,
   active,
+  isBest,
+  onToggleBest,
+  lifetimeRevenue,
   renaming,
   renameValue,
   onRenameChange,
@@ -519,7 +577,11 @@ function ScenarioRow({
       onClick={onSelect}
       className={clsx(
         'group flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer relative',
-        active
+        isBest
+          ? active
+            ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 ring-1 ring-amber-300 dark:ring-amber-700'
+            : 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+          : active
           ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200'
           : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300',
         isDragging && 'opacity-40',
@@ -530,7 +592,7 @@ function ScenarioRow({
         className="w-3 h-3 flex-shrink-0 text-gray-300 dark:text-gray-600 md:opacity-0 md:group-hover:opacity-100 cursor-grab active:cursor-grabbing"
         aria-label="Drag to reorder"
       />
-      <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+      <Calendar className={clsx('w-3.5 h-3.5 flex-shrink-0', isBest ? 'text-amber-500' : 'text-gray-400')} />
       {renaming ? (
         <input
           autoFocus
@@ -547,7 +609,39 @@ function ScenarioRow({
       ) : (
         <span className="flex-1 truncate">{name}</span>
       )}
+      {lifetimeRevenue && !renaming && (
+        <span
+          className={clsx(
+            'text-xs tabular-nums flex-shrink-0',
+            isBest ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-400',
+          )}
+          title="Total lifetime revenue across all placements"
+        >
+          {lifetimeRevenue}
+        </span>
+      )}
+      {isBest && !renaming && (
+        <Star
+          className="w-3 h-3 flex-shrink-0 text-amber-500 fill-amber-400"
+          aria-label="Marked as best"
+        />
+      )}
       <div className="md:opacity-0 md:group-hover:opacity-100 flex items-center gap-0.5">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleBest();
+          }}
+          title={isBest ? 'Unmark as best' : 'Mark as best'}
+          className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30"
+        >
+          <Star
+            className={clsx(
+              'w-3 h-3',
+              isBest ? 'text-amber-500 fill-amber-400' : 'text-gray-500',
+            )}
+          />
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();

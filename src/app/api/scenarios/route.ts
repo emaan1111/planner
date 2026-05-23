@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
         color: body.color ?? 'indigo',
         notes: body.notes,
         order: body.order ?? 0,
+        isBest: body.isBest ?? false,
       },
     });
     return NextResponse.json(scenario, { status: 201 });

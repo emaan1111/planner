@@ -16,7 +16,7 @@ import {
   effectivePrice,
   effectiveChurn,
 } from '@/types/scenarios';
-import { X, TrendingUp, AlertTriangle, Users, GitCompare, ChevronUp, ChevronDown, SlidersHorizontal, Check, Folder } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Users, GitCompare, ChevronUp, ChevronDown, SlidersHorizontal, Check, Folder, Sparkles, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import clsx from 'clsx';
 
 interface DetailedPnLReportProps {
@@ -140,6 +140,16 @@ export function DetailedPnLReport({ open, onClose }: DetailedPnLReportProps) {
               <Stat label="EV" value={fmt(report.totals.expectedValue)} tone={report.totals.expectedValue >= 0 ? 'emerald' : 'rose'} />
               <Stat label="Members yr 1" value={`${Math.round(report.totals.membersYear1)}`} tone="indigo" />
             </section>
+
+            {/* AI insights — explains why revenue/profit lands where it does.
+                Keyed by scenarioId so internal state resets when you switch scenarios. */}
+            {activeScenarioId && (
+              <ScenarioInsights
+                key={activeScenarioId}
+                scenarioId={activeScenarioId}
+                placementCount={placements.length}
+              />
+            )}
 
             {/* Scenario comparison — scoped to active scenario's folder by default.
                 Keyed by the active bucket so the user's custom selection resets when
@@ -552,6 +562,7 @@ type CompareSortKey =
   | 'name'
   | 'placements'
   | 'members'
+  | 'regs'
   | 'revenue6mo'
   | 'revenue12mo'
   | 'revenue'
@@ -612,7 +623,8 @@ function ScenarioCompareSection({
         existing.ev === stats.ev &&
         existing.revenue6mo === stats.revenue6mo &&
         existing.revenue12mo === stats.revenue12mo &&
-        existing.members === stats.members
+        existing.members === stats.members &&
+        existing.regs === stats.regs
       ) {
         return prev;
       }
@@ -701,6 +713,7 @@ function ScenarioCompareSection({
               <SortableTh sortKey="name" current={sortKey} dir={sortDir} onSort={toggleSort}>Scenario</SortableTh>
               <SortableTh sortKey="placements" current={sortKey} dir={sortDir} onSort={toggleSort}>Placements</SortableTh>
               <SortableTh sortKey="members" current={sortKey} dir={sortDir} onSort={toggleSort}>Members</SortableTh>
+              <SortableTh sortKey="regs" current={sortKey} dir={sortDir} onSort={toggleSort}>Regs</SortableTh>
               <SortableTh sortKey="revenue6mo" current={sortKey} dir={sortDir} onSort={toggleSort}>6mo rev</SortableTh>
               <SortableTh sortKey="revenue12mo" current={sortKey} dir={sortDir} onSort={toggleSort}>12mo rev</SortableTh>
               <SortableTh sortKey="revenue" current={sortKey} dir={sortDir} onSort={toggleSort}>Lifetime rev</SortableTh>
@@ -930,8 +943,11 @@ function ScenarioCompareTableRow({
         {isActive && <span className="ml-2 text-[9px] uppercase tracking-wide text-indigo-500">active</span>}
       </Td>
       <Td>{placements.length}</Td>
-      <Td title="Avg active paying members across the next 12 months (memberships) + one-off registrations">
+      <Td title="Avg active paying members across the next 12 months (memberships only)">
         {Math.round(stats.members)}
+      </Td>
+      <Td title="Total projected registrations across one-off courses">
+        {Math.round(stats.regs)}
       </Td>
       <Td>{fmt(stats.revenue6mo)}</Td>
       <Td>{fmt(stats.revenue12mo)}</Td>
@@ -961,6 +977,7 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
   let revenue6mo = 0;
   let revenue12mo = 0;
   let members = 0;
+  let regs = 0;
 
   for (const p of placements) {
     const m = computePlacementMetrics(p);
@@ -992,10 +1009,10 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
         revenue12mo += rev;
         if (m.deliveryStart < sixMonthsOut) revenue6mo += rev;
       }
-      members += p.projectedRegistrations;
+      regs += p.projectedRegistrations;
     }
   }
-  return { revenue, cost, profit, ev, revenue6mo, revenue12mo, members };
+  return { revenue, cost, profit, ev, revenue6mo, revenue12mo, members, regs };
 }
 
 // Membership projection driven purely by churn (independent of retentionMonths).
@@ -1036,4 +1053,149 @@ function RiskPill({ level }: { level: ReturnType<typeof riskLevel> }) {
     high: 'bg-rose-100 text-rose-700',
   };
   return <span className={clsx('text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide', tones[level])}>{level}</span>;
+}
+
+interface ScenarioAnalysisDriver {
+  label: string;
+  detail: string;
+  direction: 'positive' | 'negative' | 'neutral';
+  magnitude: number;
+}
+
+interface ScenarioAnalysisResponse {
+  scenarioName: string;
+  totals: { revenue: number; cost: number; profit: number; ev: number; placements: number };
+  drivers: ScenarioAnalysisDriver[];
+  narrative: string;
+  source: 'openai' | 'heuristic';
+}
+
+function ScenarioInsights({ scenarioId, placementCount }: { scenarioId: string; placementCount: number }) {
+  const [analysis, setAnalysis] = useState<ScenarioAnalysisResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/ai/scenario-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenarioId }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = (await res.json()) as ScenarioAnalysisResponse;
+      setAnalysis(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Analysis failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="rounded-lg border border-indigo-200 dark:border-indigo-900/50 bg-gradient-to-br from-indigo-50/60 via-white to-white dark:from-indigo-900/20 dark:via-gray-900 dark:to-gray-900 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs uppercase tracking-wide text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5" />
+          AI insights · why this number?
+        </h3>
+        <button
+          onClick={run}
+          disabled={loading || placementCount === 0}
+          className={clsx(
+            'text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded font-medium',
+            loading || placementCount === 0
+              ? 'bg-gray-100 text-gray-400 dark:bg-gray-800 cursor-not-allowed'
+              : 'bg-indigo-600 hover:bg-indigo-700 text-white',
+          )}
+          title={placementCount === 0 ? 'Add placements first' : 'Analyze this scenario'}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Analyzing…
+            </>
+          ) : analysis ? (
+            <>
+              <Sparkles className="w-3 h-3" />
+              Re-analyze
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3 h-3" />
+              Analyze scenario
+            </>
+          )}
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20 rounded px-2 py-1.5">
+          {error}
+        </div>
+      )}
+
+      {!analysis && !error && !loading && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {placementCount === 0
+            ? 'No placements in this scenario yet — add courses or memberships to get an analysis.'
+            : 'Click Analyze to break down what is driving revenue, profit, and risk in this scenario.'}
+        </p>
+      )}
+
+      {analysis && (
+        <div className="space-y-4">
+          {analysis.drivers.length > 0 && (
+            <div>
+              <h4 className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">Key drivers</h4>
+              <ul className="space-y-1.5">
+                {analysis.drivers.map((d, idx) => (
+                  <DriverRow key={idx} driver={d} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {analysis.narrative && (
+            <div>
+              <h4 className="text-[10px] uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1">
+                Summary
+                <span className="text-[9px] normal-case text-gray-400">
+                  · {analysis.source === 'openai' ? 'gpt-4o-mini' : 'heuristic'}
+                </span>
+              </h4>
+              <div className="text-xs text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">
+                {analysis.narrative}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DriverRow({ driver }: { driver: ScenarioAnalysisDriver }) {
+  const tone =
+    driver.direction === 'positive'
+      ? 'text-emerald-600 dark:text-emerald-300'
+      : driver.direction === 'negative'
+      ? 'text-rose-600 dark:text-rose-300'
+      : 'text-gray-500 dark:text-gray-400';
+  const Icon =
+    driver.direction === 'positive'
+      ? ArrowUpRight
+      : driver.direction === 'negative'
+      ? ArrowDownRight
+      : Sparkles;
+  return (
+    <li className="flex items-start gap-2 text-xs">
+      <Icon className={clsx('w-3.5 h-3.5 mt-0.5 flex-shrink-0', tone)} />
+      <div className="flex-1">
+        <div className="font-medium text-gray-800 dark:text-gray-100">{driver.label}</div>
+        <div className="text-gray-500 dark:text-gray-400">{driver.detail}</div>
+      </div>
+    </li>
+  );
 }

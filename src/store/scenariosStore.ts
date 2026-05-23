@@ -24,6 +24,7 @@ interface ScenariosUIState {
   customMonths: ScenarioCustomMonth[];
   showDelivery: boolean; // show delivery bars on the calendar
   notesPanelOpen: boolean; // inline scenario notes panel
+  showSidebarRevenue: boolean; // show total lifetime revenue beside scenario names
 
   setActiveScenario: (id: string | null) => void;
   setActiveFolder: (id: string | null) => void;
@@ -50,6 +51,7 @@ interface ScenariosUIState {
   toggleCustomMonth: (year: number, month: number) => void;
   toggleDelivery: () => void;
   setNotesPanelOpen: (open: boolean) => void;
+  toggleSidebarRevenue: () => void;
 }
 
 function startOfMonth(d: Date): Date {
@@ -74,6 +76,7 @@ export const useScenariosStore = create<ScenariosUIState>()(
       customMonths: [],
       showDelivery: true,
       notesPanelOpen: false,
+      showSidebarRevenue: false,
 
       setActiveScenario: (id) => set({ activeScenarioId: id, sidebarOpen: false }),
       setActiveFolder: (id) => set({ activeFolderId: id }),
@@ -116,6 +119,7 @@ export const useScenariosStore = create<ScenariosUIState>()(
       },
       toggleDelivery: () => set({ showDelivery: !get().showDelivery }),
       setNotesPanelOpen: (open) => set({ notesPanelOpen: open }),
+      toggleSidebarRevenue: () => set({ showSidebarRevenue: !get().showSidebarRevenue }),
     }),
     {
       name: 'planner-scenarios-ui',
@@ -134,6 +138,7 @@ export const useScenariosStore = create<ScenariosUIState>()(
         viewMode: state.viewMode,
         customMonths: state.customMonths,
         showDelivery: state.showDelivery,
+        showSidebarRevenue: state.showSidebarRevenue,
       } as ScenariosUIState),
     },
   ),

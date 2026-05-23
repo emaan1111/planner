@@ -41,6 +41,7 @@ export interface Scenario {
   color: EventColor;
   notes?: string;
   order: number;
+  isBest: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

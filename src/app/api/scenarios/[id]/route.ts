@@ -29,6 +29,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         color: body.color,
         notes: body.notes,
         order: body.order,
+        isBest: body.isBest,
       },
     });
     return NextResponse.json(scenario);

@@ -310,6 +310,15 @@ export function usePlacements(scenarioId?: string) {
   });
 }
 
+// All placements across every scenario — used by the sidebar revenue toggle.
+export function useAllPlacements(enabled: boolean = true) {
+  return useQuery({
+    queryKey: placementKeys.all,
+    queryFn: () => fetchPlacements(),
+    enabled,
+  });
+}
+
 export function useCreatePlacement() {
   const qc = useQueryClient();
   return useMutation({

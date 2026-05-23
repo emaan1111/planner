@@ -190,6 +190,7 @@ model Scenario {
   color       String   @default("indigo")
   notes       String?
   order       Int      @default(0)
+  isBest      Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
