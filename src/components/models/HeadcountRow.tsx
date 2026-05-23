@@ -1,6 +1,6 @@
 'use client';
 
-import { useUpdateHeadcount, useDeleteHeadcount } from '@/hooks/useModelsQuery';
+import { useUpdateHeadcount, useDeleteHeadcount, useCreateHeadcount } from '@/hooks/useModelsQuery';
 import { ModelHeadcount } from '@/types/models';
 import { Trash2, User } from 'lucide-react';
 
@@ -12,6 +12,7 @@ interface HeadcountRowProps {
 export function HeadcountRow({ hc, pushUndo }: HeadcountRowProps) {
   const update = useUpdateHeadcount();
   const del = useDeleteHeadcount();
+  const create = useCreateHeadcount();
 
   const set = (updates: Partial<ModelHeadcount>) => update.mutate({ id: hc.id, updates });
 
@@ -33,25 +34,23 @@ export function HeadcountRow({ hc, pushUndo }: HeadcountRowProps) {
           className="flex-1 min-w-0 px-2 py-1 text-sm rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-700 focus:border-indigo-300 bg-transparent"
         />
         <button
-          onClick={() => {
+          onClick={(e) => {
+            (e.currentTarget as HTMLButtonElement).blur();
+            (document.activeElement as HTMLElement | null)?.blur?.();
             const snapshot = { ...hc };
             pushUndo({
               label: `Remove ${snapshot.name}`,
               undo: async () => {
-                await fetch('/api/model-headcount', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    modelId: snapshot.modelId,
-                    name: snapshot.name,
-                    role: snapshot.role,
-                    annualSalary: snapshot.annualSalary,
-                    startMonth: new Date(snapshot.startMonth).toISOString(),
-                    endMonth: snapshot.endMonth ? new Date(snapshot.endMonth).toISOString() : null,
-                    benefitsPercent: snapshot.benefitsPercent,
-                    notes: snapshot.notes,
-                    order: snapshot.order,
-                  }),
+                await create.mutateAsync({
+                  modelId: snapshot.modelId,
+                  name: snapshot.name,
+                  role: snapshot.role,
+                  annualSalary: snapshot.annualSalary,
+                  startMonth: new Date(snapshot.startMonth),
+                  endMonth: snapshot.endMonth ? new Date(snapshot.endMonth) : undefined,
+                  benefitsPercent: snapshot.benefitsPercent,
+                  notes: snapshot.notes,
+                  order: snapshot.order,
                 });
               },
             });

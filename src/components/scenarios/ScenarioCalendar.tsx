@@ -686,6 +686,8 @@ function PlacementSegment({
         <button
           onClick={(e) => {
             e.stopPropagation();
+            (e.currentTarget as HTMLButtonElement).blur();
+            (document.activeElement as HTMLElement | null)?.blur?.();
             // Capture snapshot for undo before deleting
             const snapshot = { ...placement };
             pushUndo({
@@ -761,6 +763,8 @@ function EventSegmentBlock({
         <button
           onClick={(e) => {
             e.stopPropagation();
+            (e.currentTarget as HTMLButtonElement).blur();
+            (document.activeElement as HTMLElement | null)?.blur?.();
             const snapshot = { ...event };
             pushUndo({
               label: `Remove ${event.title}`,

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   useUpdateLine,
   useDeleteLine,
+  useCreateLine,
 } from '@/hooks/useModelsQuery';
 import { useScenarios } from '@/hooks/useScenariosQuery';
 import { ModelLine, InputMode, LineKind, LinkedField, DriverBase } from '@/types/models';
@@ -27,6 +28,7 @@ const MODE_LABEL: Record<InputMode, string> = {
 export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
   const updateLine = useUpdateLine();
   const deleteLine = useDeleteLine();
+  const createLine = useCreateLine();
   const { data: scenarios = [] } = useScenarios();
 
   const [expanded, setExpanded] = useState(false);
@@ -81,25 +83,16 @@ export function LineRow({ line, horizonMonths, pushUndo }: LineRowProps) {
           className="flex-1 sm:flex-none sm:w-24 min-w-0 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
         />
         <button
-          onClick={() => {
+          onClick={(e) => {
+            (e.currentTarget as HTMLButtonElement).blur();
+            (document.activeElement as HTMLElement | null)?.blur?.();
             const snapshot = { ...line };
             pushUndo({
               label: `Remove ${line.name}`,
               undo: async () => {
-                // Re-creates via line-create endpoint
-                const res = await fetch('/api/model-lines', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    ...snapshot,
-                    startMonth: undefined,
-                    endMonth: undefined,
-                    createdAt: undefined,
-                    updatedAt: undefined,
-                    id: undefined,
-                  }),
-                });
-                if (!res.ok) throw new Error('Undo failed');
+                const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = snapshot;
+                void _id; void _c; void _u;
+                await createLine.mutateAsync(rest as Parameters<typeof createLine.mutateAsync>[0]);
               },
             });
             deleteLine.mutate(line.id);
