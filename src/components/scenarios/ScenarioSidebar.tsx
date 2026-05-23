@@ -47,25 +47,57 @@ export function ScenarioSidebar() {
   const [renameValue, setRenameValue] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // 'unfiled' is the sentinel for the no-folder bucket.
+  const [dragOverBucket, setDragOverBucket] = useState<string | 'unfiled' | null>(null);
 
   const handleReorder = (draggedId: string, dropTargetId: string) => {
     if (draggedId === dropTargetId) return;
     const dragged = scenarios.find((s) => s.id === draggedId);
     const target = scenarios.find((s) => s.id === dropTargetId);
     if (!dragged || !target) return;
-    const bucket = target.folderId ?? null;
-    // Only reorder within the same bucket; ignore cross-bucket drops for now.
-    if ((dragged.folderId ?? null) !== bucket) return;
-    const inBucket = scenarios
-      .filter((s) => (s.folderId ?? null) === bucket)
+    const draggedBucket = dragged.folderId ?? null;
+    const targetBucket = target.folderId ?? null;
+
+    if (draggedBucket === targetBucket) {
+      const inBucket = scenarios
+        .filter((s) => (s.folderId ?? null) === targetBucket)
+        .sort((a, b) => a.order - b.order);
+      const draggedIdx = inBucket.findIndex((s) => s.id === draggedId);
+      const targetIdx = inBucket.findIndex((s) => s.id === dropTargetId);
+      if (draggedIdx === -1 || targetIdx === -1) return;
+      const reordered = [...inBucket];
+      const [removed] = reordered.splice(draggedIdx, 1);
+      reordered.splice(targetIdx, 0, removed);
+      reorderScenarios.mutate(reordered.map((s, i) => ({ id: s.id, order: i })));
+      return;
+    }
+
+    // Cross-bucket: move dragged into target's bucket and insert at target's position.
+    updateScenario.mutate({ id: draggedId, updates: { folderId: targetBucket ?? null } as Partial<typeof dragged> });
+    const inTargetBucket = scenarios
+      .filter((s) => (s.folderId ?? null) === targetBucket && s.id !== draggedId)
       .sort((a, b) => a.order - b.order);
-    const draggedIdx = inBucket.findIndex((s) => s.id === draggedId);
-    const targetIdx = inBucket.findIndex((s) => s.id === dropTargetId);
-    if (draggedIdx === -1 || targetIdx === -1) return;
-    const reordered = [...inBucket];
-    const [removed] = reordered.splice(draggedIdx, 1);
-    reordered.splice(targetIdx, 0, removed);
+    const targetIdx = inTargetBucket.findIndex((s) => s.id === dropTargetId);
+    if (targetIdx === -1) return;
+    const reordered = [...inTargetBucket];
+    reordered.splice(targetIdx, 0, { ...dragged, folderId: targetBucket ?? undefined });
     reorderScenarios.mutate(reordered.map((s, i) => ({ id: s.id, order: i })));
+    if (targetBucket) setOpenFolderIds((prev) => new Set(prev).add(targetBucket));
+  };
+
+  // Move scenario to a bucket and append at the end (used when dropping on the
+  // folder header or empty body rather than on a specific row).
+  const handleMoveToBucket = (draggedId: string, bucket: string | null) => {
+    const dragged = scenarios.find((s) => s.id === draggedId);
+    if (!dragged) return;
+    if ((dragged.folderId ?? null) === bucket) return;
+    const inBucket = scenarios.filter((s) => (s.folderId ?? null) === bucket && s.id !== draggedId);
+    const nextOrder = inBucket.length > 0 ? Math.max(...inBucket.map((s) => s.order)) + 1 : 0;
+    updateScenario.mutate({
+      id: draggedId,
+      updates: { folderId: bucket ?? null, order: nextOrder } as Partial<typeof dragged>,
+    });
+    if (bucket) setOpenFolderIds((prev) => new Set(prev).add(bucket));
   };
 
   const toggleFolder = (id: string) => {
@@ -167,8 +199,29 @@ export function ScenarioSidebar() {
           return (
             <div key={folder.id} className="px-2">
               <div
-                className="group flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-sm"
+                className={clsx(
+                  'group flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-sm',
+                  dragOverBucket === folder.id &&
+                    draggingId &&
+                    'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-300 dark:ring-indigo-700',
+                )}
                 onClick={() => toggleFolder(folder.id)}
+                onDragOver={(e) => {
+                  if (!draggingId) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDragOverBucket(folder.id);
+                }}
+                onDragLeave={() =>
+                  setDragOverBucket((cur) => (cur === folder.id ? null : cur))
+                }
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggingId) handleMoveToBucket(draggingId, folder.id);
+                  setDraggingId(null);
+                  setDragOverBucket(null);
+                  setDragOverId(null);
+                }}
               >
                 {open ? (
                   <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -229,9 +282,35 @@ export function ScenarioSidebar() {
                 </div>
               </div>
               {open && (
-                <div className="ml-6 border-l border-gray-100 dark:border-gray-800 pl-2 my-1">
+                <div
+                  className={clsx(
+                    'ml-6 border-l border-gray-100 dark:border-gray-800 pl-2 my-1',
+                    folderScenarios.length === 0 &&
+                      dragOverBucket === folder.id &&
+                      draggingId &&
+                      'bg-indigo-50/40 dark:bg-indigo-900/20 rounded',
+                  )}
+                  onDragOver={(e) => {
+                    if (!draggingId) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDragOverBucket(folder.id);
+                  }}
+                  onDragLeave={() =>
+                    setDragOverBucket((cur) => (cur === folder.id ? null : cur))
+                  }
+                  onDrop={(e) => {
+                    // Only handle drops directly on the body (not bubbled from rows).
+                    if (e.target !== e.currentTarget) return;
+                    e.preventDefault();
+                    if (draggingId) handleMoveToBucket(draggingId, folder.id);
+                    setDraggingId(null);
+                    setDragOverBucket(null);
+                    setDragOverId(null);
+                  }}
+                >
                   {folderScenarios.length === 0 && (
-                    <div className="text-xs text-gray-400 italic px-2 py-1">empty</div>
+                    <div className="text-xs text-gray-400 italic px-2 py-1 pointer-events-none">empty</div>
                   )}
                   {folderScenarios.map((s) => (
                     <ScenarioRow
@@ -276,9 +355,48 @@ export function ScenarioSidebar() {
         })}
 
         {/* Unfiled scenarios */}
-        {unfiledScenarios.length > 0 && (
-          <div className="px-2 mt-2">
-            <div className="px-2 py-1 text-xs uppercase tracking-wide text-gray-400">Unfiled</div>
+        {(unfiledScenarios.length > 0 || (draggingId && scenarios.find((s) => s.id === draggingId)?.folderId)) && (
+          <div
+            className={clsx(
+              'px-2 mt-2',
+              dragOverBucket === 'unfiled' &&
+                draggingId &&
+                'bg-indigo-50/40 dark:bg-indigo-900/20 rounded',
+            )}
+            onDragOver={(e) => {
+              if (!draggingId) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              setDragOverBucket('unfiled');
+            }}
+            onDragLeave={() =>
+              setDragOverBucket((cur) => (cur === 'unfiled' ? null : cur))
+            }
+            onDrop={(e) => {
+              e.preventDefault();
+              // Only act on direct drops (container padding or the Unfiled header);
+              // drops on scenario rows bubble up after the row's own handler runs.
+              const onContainer = e.target === e.currentTarget;
+              const onHeader = (e.target as HTMLElement).dataset?.unfiledHeader === 'true';
+              if (draggingId && (onContainer || onHeader)) {
+                handleMoveToBucket(draggingId, null);
+              }
+              setDraggingId(null);
+              setDragOverBucket(null);
+              setDragOverId(null);
+            }}
+          >
+            <div
+              data-unfiled-header="true"
+              className={clsx(
+                'px-2 py-1 text-xs uppercase tracking-wide text-gray-400',
+                dragOverBucket === 'unfiled' &&
+                  draggingId &&
+                  'text-indigo-500 dark:text-indigo-300',
+              )}
+            >
+              Unfiled
+            </div>
             {unfiledScenarios.map((s) => (
               <ScenarioRow
                 key={s.id}
