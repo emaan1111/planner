@@ -26,7 +26,7 @@ import {
   useUpdateScenario,
 } from '@/hooks/useScenariosQuery';
 import { useUndoStore } from './ScenarioUndoProvider';
-import { computePlacementMetrics, CoursePlacement, ScenarioEvent } from '@/types/scenarios';
+import { computePlacementMetrics, CoursePlacement, ScenarioEvent, effectiveCohort, riskLevel } from '@/types/scenarios';
 import { useCreatePlacement } from '@/hooks/useScenariosQuery';
 import { colorClasses, EventColor } from '@/types';
 import {
@@ -994,6 +994,22 @@ function PlacementSegment({
   const missingList = missingFields.join(', ');
   const incompleteHint = isIncomplete ? ` — missing: ${missingList} (no projection)` : '';
   const warningLabel = isIncomplete ? `Missing: ${missingList}` : '';
+  // Per-placement risk = inverse of the likelihood the user set for this drop.
+  // Dropping the same course in March vs April produces different risk because
+  // the likelihood is edited per placement. The categorical riskLevel() (which
+  // also factors financial exposure) is still surfaced in the tooltip as a
+  // secondary signal.
+  const likelihood = Math.max(0, Math.min(100, placement.likelihoodPercent ?? 0));
+  const riskPercent = 100 - likelihood;
+  const riskBucket = riskPercent < 30 ? 'low' : riskPercent < 60 ? 'medium' : 'high';
+  const riskDots = riskBucket === 'high' ? 3 : riskBucket === 'medium' ? 2 : 1;
+  const riskDotClass =
+    riskBucket === 'high'
+      ? 'bg-red-400'
+      : riskBucket === 'medium'
+      ? 'bg-amber-300'
+      : 'bg-emerald-300';
+  const exposureRisk = riskLevel(placement);
   return (
     <div
       onClick={(e) => {
@@ -1009,7 +1025,11 @@ function PlacementSegment({
         isStart && 'rounded-l',
         isEnd && 'rounded-r',
       )}
-      title={`${isMarketing ? 'Marketing' : 'Delivery'} – ${courseName}${incompleteHint}`}
+      title={`${isMarketing ? 'Marketing' : 'Delivery'} – ${courseName}\nProjected registrations: ${effectiveCohort(placement)}${
+        (placement.projectedRegistrations ?? 0) <= 0 && (placement.courseTemplate?.defaultProjectedRegistrations ?? 0) > 0
+          ? ' (template default)'
+          : ''
+      }\nRisk: ${riskPercent}% (${riskBucket.toUpperCase()}) — likelihood ${likelihood}%\nExposure: ${exposureRisk.toUpperCase()}${incompleteHint}`}
     >
       {isStart && (
         <div
@@ -1053,6 +1073,26 @@ function PlacementSegment({
           )}
         >
           MKT
+        </span>
+      )}
+      {isStart && (
+        <span
+          aria-label={`Risk ${riskPercent}% (${riskBucket})`}
+          className={clsx(
+            'inline-flex items-center gap-px flex-shrink-0 rounded',
+            isMarketing ? 'bg-black/25 px-1 py-px' : 'bg-white/60 dark:bg-gray-800/60 px-0.5 py-px',
+          )}
+        >
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className={clsx(
+                'rounded-full',
+                compact ? 'w-1 h-1' : 'w-1.5 h-1.5',
+                i < riskDots ? riskDotClass : 'bg-white/30 dark:bg-gray-500/40',
+              )}
+            />
+          ))}
         </span>
       )}
       <span className="truncate flex-1">

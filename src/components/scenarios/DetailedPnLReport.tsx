@@ -570,7 +570,8 @@ type CompareSortKey =
   | 'revenue'
   | 'cost'
   | 'profit'
-  | 'ev';
+  | 'ev'
+  | 'risk';
 
 type CompareRowStats = ReturnType<typeof computeScenarioCompareStats> & { placements: number };
 
@@ -627,7 +628,8 @@ function ScenarioCompareSection({
         existing.revenue6mo === stats.revenue6mo &&
         existing.revenue12mo === stats.revenue12mo &&
         existing.members === stats.members &&
-        existing.regs === stats.regs
+        existing.regs === stats.regs &&
+        existing.risk === stats.risk
       ) {
         return prev;
       }
@@ -741,6 +743,7 @@ function ScenarioCompareSection({
               <SortableTh sortKey="cost" current={sortKey} dir={sortDir} onSort={toggleSort}>Cost</SortableTh>
               <SortableTh sortKey="profit" current={sortKey} dir={sortDir} onSort={toggleSort}>Profit</SortableTh>
               <SortableTh sortKey="ev" current={sortKey} dir={sortDir} onSort={toggleSort}>EV</SortableTh>
+              <SortableTh sortKey="risk" current={sortKey} dir={sortDir} onSort={toggleSort}>Risk</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -755,7 +758,7 @@ function ScenarioCompareSection({
             ))}
             {sortedScenarios.length === 0 && (
               <tr>
-                <td colSpan={9} className="text-center text-gray-400 italic py-4">
+                <td colSpan={10} className="text-center text-gray-400 italic py-4">
                   No scenarios selected — use Customize to pick scenarios to compare.
                 </td>
               </tr>
@@ -1184,7 +1187,27 @@ function ScenarioCompareTableRow({
       <Td>{fmt(stats.cost)}</Td>
       <Td className={clsx(stats.profit >= 0 ? 'text-emerald-600' : 'text-rose-600', 'font-semibold')}>{fmt(stats.profit)}</Td>
       <Td className={clsx(stats.ev >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{fmt(stats.ev)}</Td>
+      <Td title="Cost-weighted average risk across this scenario's placements (risk = 100 − likelihood)">
+        <ScenarioRiskMeter riskPercent={stats.risk} />
+      </Td>
     </tr>
+  );
+}
+
+function ScenarioRiskMeter({ riskPercent }: { riskPercent: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round(riskPercent)));
+  const bucket = pct < 30 ? 'low' : pct < 60 ? 'medium' : 'high';
+  const barClass =
+    bucket === 'high' ? 'bg-rose-500' : bucket === 'medium' ? 'bg-amber-400' : 'bg-emerald-500';
+  const textClass =
+    bucket === 'high' ? 'text-rose-600' : bucket === 'medium' ? 'text-amber-700' : 'text-emerald-600';
+  return (
+    <div className="inline-flex items-center gap-2 min-w-[80px]">
+      <div className="relative w-16 h-1.5 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+        <div className={clsx('absolute inset-y-0 left-0 rounded', barClass)} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={clsx('text-[10px] font-semibold tabular-nums', textClass)}>{pct}%</span>
+    </div>
   );
 }
 
@@ -1207,11 +1230,21 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
   let revenue12mo = 0;
   let members = 0;
   let regs = 0;
+  // Scenario-level risk = cost-weighted average of per-placement risk
+  // (risk = 100 - likelihood). Falls back to a simple mean when total cost
+  // is 0 so an unfunded scenario still shows a meaningful number.
+  let riskCostNumerator = 0;
+  let riskSimpleSum = 0;
+  let riskCount = 0;
 
   for (const p of placements) {
     const m = computePlacementMetrics(p);
     cost += m.cost;
     ev += m.expectedValue;
+    const placementRisk = 100 - Math.max(0, Math.min(100, p.likelihoodPercent ?? 0));
+    riskCostNumerator += placementRisk * Math.max(0, m.cost);
+    riskSimpleSum += placementRisk;
+    riskCount += 1;
 
     if (p.isMembership) {
       const projected = projectChurnStream(p, 120);
@@ -1241,7 +1274,13 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
       regs += p.projectedRegistrations;
     }
   }
-  return { revenue, cost, profit, ev, revenue6mo, revenue12mo, members, regs };
+  const risk =
+    riskCount === 0
+      ? 0
+      : cost > 0
+      ? riskCostNumerator / cost
+      : riskSimpleSum / riskCount;
+  return { revenue, cost, profit, ev, revenue6mo, revenue12mo, members, regs, risk };
 }
 
 function RiskPill({ level }: { level: ReturnType<typeof riskLevel> }) {
