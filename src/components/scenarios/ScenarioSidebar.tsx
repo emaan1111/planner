@@ -15,7 +15,7 @@ import {
   useAllPlacements,
 } from '@/hooks/useScenariosQuery';
 import { useScenariosStore } from '@/store/scenariosStore';
-import { computeRevenue } from '@/types/scenarios';
+import { computeLifetimeRevenue } from '@/types/scenarios';
 import {
   ChevronDown,
   ChevronRight,
@@ -93,7 +93,7 @@ export function ScenarioSidebar() {
   const revenueByScenario = new Map<string, number>();
   if (showSidebarRevenue) {
     for (const p of allPlacements) {
-      revenueByScenario.set(p.scenarioId, (revenueByScenario.get(p.scenarioId) ?? 0) + computeRevenue(p));
+      revenueByScenario.set(p.scenarioId, (revenueByScenario.get(p.scenarioId) ?? 0) + computeLifetimeRevenue(p));
     }
   }
   const formatRevenue = (n: number) => {

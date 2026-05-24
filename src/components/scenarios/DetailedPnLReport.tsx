@@ -9,6 +9,7 @@ import {
   computePlacementMetrics,
   computeRevenue,
   membershipRevenueStream,
+  projectChurnStream,
   riskLevel,
   likelihoodLevel,
   CoursePlacement,
@@ -1241,37 +1242,6 @@ function computeScenarioCompareStats(placements: CoursePlacement[]) {
     }
   }
   return { revenue, cost, profit, ev, revenue6mo, revenue12mo, members, regs };
-}
-
-// Membership projection driven purely by churn (independent of retentionMonths).
-// Walks period-by-period from delivery start, applying churn each period, and
-// stops once the active cohort effectively dies out or the horizon is reached.
-function projectChurnStream(p: CoursePlacement, maxPeriods: number) {
-  const cohort = effectiveCohort(p);
-  const price = effectivePrice(p);
-  const r = Math.min(1, Math.max(0, effectiveChurn(p) / 100));
-  const periodDays = p.courseTemplate?.billingPeriodDays ?? 30;
-  const conv = p.trialToPaidConversionPercent / 100;
-  const trialPeriods =
-    p.entryMode === 'trial-to-paid' ? Math.ceil(p.trialDurationDays / periodDays) : 0;
-  const out: { date: Date; active: number; revenue: number }[] = [];
-  let active = 0;
-  for (let k = 0; k < maxPeriods; k++) {
-    const date = new Date(p.deliveryStartDate);
-    date.setDate(date.getDate() + k * periodDays);
-    if (p.entryMode === 'trial-to-paid') {
-      if (k === trialPeriods) active = cohort * conv;
-      else if (k > trialPeriods) active = Math.max(0, active - active * r);
-    } else {
-      if (k === 0) active = cohort;
-      else active = Math.max(0, active - active * r);
-    }
-    const revenue = active * price;
-    out.push({ date, active, revenue });
-    if (k > 24 && active < 0.5) break;
-    if (r >= 1 && k > trialPeriods) break;
-  }
-  return out;
 }
 
 function RiskPill({ level }: { level: ReturnType<typeof riskLevel> }) {
