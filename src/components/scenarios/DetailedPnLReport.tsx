@@ -12,11 +12,12 @@ import {
   riskLevel,
   likelihoodLevel,
   CoursePlacement,
+  Scenario,
   effectiveCohort,
   effectivePrice,
   effectiveChurn,
 } from '@/types/scenarios';
-import { X, TrendingUp, AlertTriangle, Users, GitCompare, ChevronUp, ChevronDown, SlidersHorizontal, Check, Folder, Sparkles, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Users, GitCompare, ChevronUp, ChevronDown, SlidersHorizontal, Check, Folder, Sparkles, Loader2, ArrowUpRight, ArrowDownRight, Diff } from 'lucide-react';
 import clsx from 'clsx';
 
 interface DetailedPnLReportProps {
@@ -577,7 +578,7 @@ function ScenarioCompareSection({
   folders,
   activeScenarioId,
 }: {
-  scenarios: { id: string; name: string; folderId?: string }[];
+  scenarios: Scenario[];
   folders: { id: string; name: string }[];
   activeScenarioId: string | null;
 }) {
@@ -588,6 +589,7 @@ function ScenarioCompareSection({
   // overridden the selection explicitly via the picker.
   const [customSelection, setCustomSelection] = useState<Set<string> | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [diffOpen, setDiffOpen] = useState(false);
 
   const active = scenarios.find((s) => s.id === activeScenarioId);
   const activeBucket = active?.folderId ?? null;
@@ -682,6 +684,24 @@ function ScenarioCompareSection({
             </button>
           )}
           <button
+            onClick={() => setDiffOpen((v) => !v)}
+            className={clsx(
+              'text-[11px] inline-flex items-center gap-1 px-2 py-1 rounded border',
+              diffOpen
+                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-700'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800',
+            )}
+            title={
+              visibleScenarios.length < 2
+                ? 'Pick at least 2 scenarios to see the diff'
+                : 'Show which inputs differ across the selected scenarios'
+            }
+            disabled={visibleScenarios.length < 2}
+          >
+            <Diff className="w-3 h-3" />
+            What differs
+          </button>
+          <button
             onClick={() => setPickerOpen((v) => !v)}
             className={clsx(
               'text-[11px] inline-flex items-center gap-1 px-2 py-1 rounded border',
@@ -742,7 +762,215 @@ function ScenarioCompareSection({
           </tbody>
         </table>
       </div>
+
+      {diffOpen && sortedScenarios.length >= 2 && (
+        <ScenarioDiffPanel scenarios={sortedScenarios.slice(0, 4)} />
+      )}
+      {diffOpen && sortedScenarios.length >= 2 && sortedScenarios.length > 4 && (
+        <p className="mt-2 text-[11px] text-gray-500 italic">
+          Showing diff for the first 4 of {sortedScenarios.length} selected scenarios — narrow your selection in Customize to focus the comparison.
+        </p>
+      )}
     </section>
+  );
+}
+
+// Invisible loader — calls usePlacements for one scenario and bubbles the
+// resulting array up to the parent. Used to fetch N scenarios' placements
+// without violating the rules of hooks (count is fixed per render).
+function PlacementsLoader({
+  scenarioId,
+  onLoad,
+}: {
+  scenarioId: string;
+  onLoad: (id: string, placements: CoursePlacement[]) => void;
+}) {
+  const { data: placements = [] } = usePlacements(scenarioId);
+  useEffect(() => {
+    onLoad(scenarioId, placements);
+  }, [scenarioId, placements, onLoad]);
+  return null;
+}
+
+// Side-by-side diff of the *inputs* across selected scenarios. Shows only
+// attributes that actually differ — identical fields are hidden so the user
+// can see exactly what they changed between A and B (and C, D if picked).
+function ScenarioDiffPanel({ scenarios }: { scenarios: Scenario[] }) {
+  const [placementsById, setPlacementsById] = useState<Record<string, CoursePlacement[]>>({});
+  const setForId = useCallback((id: string, ps: CoursePlacement[]) => {
+    setPlacementsById((prev) => (prev[id] === ps ? prev : { ...prev, [id]: ps }));
+  }, []);
+
+  const allLoaded = scenarios.every((s) => placementsById[s.id] !== undefined);
+
+  // Scenario-level diffs: notes, color, isBest flag, folder, placement count.
+  const scenarioRows = useMemo(() => {
+    const rows: { label: string; values: string[] }[] = [];
+    const push = (label: string, values: string[]) => {
+      if (new Set(values).size > 1) rows.push({ label, values });
+    };
+    push('Notes', scenarios.map((s) => (s.notes ?? '').trim() || '—'));
+    push('Color', scenarios.map((s) => s.color));
+    push('Marked as best', scenarios.map((s) => (s.isBest ? 'Yes' : 'No')));
+    push('Folder', scenarios.map((s) => s.folderId ?? '—'));
+    push('# placements', scenarios.map((s) => String((placementsById[s.id] ?? []).length)));
+    return rows;
+  }, [scenarios, placementsById]);
+
+  // For each course template that appears in at least one selected scenario,
+  // compare the placement attributes. If a scenario has multiple placements
+  // of the same course, we surface the first one's values and flag the count
+  // mismatch separately so the user knows there's more to look at.
+  const courseDiffs = useMemo(() => {
+    if (!allLoaded) return [];
+    type Cell = { placement: CoursePlacement | null; count: number };
+    const courseIds = new Set<string>();
+    for (const s of scenarios) {
+      for (const p of placementsById[s.id] ?? []) courseIds.add(p.courseTemplateId);
+    }
+
+    const out: { courseName: string; rows: { label: string; values: string[] }[]; counts: number[] }[] = [];
+    for (const cid of courseIds) {
+      const cells: Cell[] = scenarios.map((s) => {
+        const ps = (placementsById[s.id] ?? []).filter((p) => p.courseTemplateId === cid);
+        return { placement: ps[0] ?? null, count: ps.length };
+      });
+      const courseName =
+        cells.find((c) => c.placement)?.placement?.courseTemplate?.name ?? 'Course';
+      const anyMembership = cells.some((c) => c.placement?.isMembership);
+      const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+
+      const attrs: { label: string; render: (p: CoursePlacement | null) => string }[] = [
+        { label: 'Included', render: (p) => (p ? 'Yes' : 'No') },
+        { label: 'Price', render: (p) => (p ? `$${effectivePrice(p)}` : '—') },
+        { label: 'Cohort', render: (p) => (p ? `${effectiveCohort(p)}` : '—') },
+        { label: 'Cost per run', render: (p) => (p ? `$${p.costPerRun}` : '—') },
+        { label: 'Likelihood', render: (p) => (p ? `${p.likelihoodPercent}%` : '—') },
+        { label: 'Marketing start', render: (p) => (p ? isoDate(p.startDate) : '—') },
+        { label: 'Delivery start', render: (p) => (p ? isoDate(p.deliveryStartDate) : '—') },
+        { label: 'Marketing days', render: (p) => (p ? `${p.marketingDurationDays}` : '—') },
+        { label: 'Delivery days', render: (p) => (p ? `${p.deliveryDurationDays}` : '—') },
+        { label: 'Type', render: (p) => (p ? (p.isMembership ? 'Membership' : 'One-off') : '—') },
+      ];
+      if (anyMembership) {
+        attrs.push(
+          { label: 'Monthly churn', render: (p) => (p?.isMembership ? `${effectiveChurn(p)}%` : '—') },
+          { label: 'Retention months', render: (p) => (p?.isMembership ? `${p.retentionMonths}` : '—') },
+          { label: 'Entry mode', render: (p) => (p?.isMembership ? p.entryMode : '—') },
+          {
+            label: 'Trial days',
+            render: (p) =>
+              p?.isMembership && p.entryMode === 'trial-to-paid' ? `${p.trialDurationDays}` : '—',
+          },
+          {
+            label: 'Trial→paid %',
+            render: (p) =>
+              p?.isMembership && p.entryMode === 'trial-to-paid'
+                ? `${p.trialToPaidConversionPercent}%`
+                : '—',
+          },
+        );
+      }
+
+      const rows: { label: string; values: string[] }[] = [];
+      for (const a of attrs) {
+        const values = cells.map((c) => a.render(c.placement));
+        if (new Set(values).size > 1) rows.push({ label: a.label, values });
+      }
+      if (rows.length > 0) {
+        out.push({ courseName, rows, counts: cells.map((c) => c.count) });
+      }
+    }
+    return out.sort((a, b) => a.courseName.localeCompare(b.courseName));
+  }, [scenarios, placementsById, allLoaded]);
+
+  return (
+    <div className="mt-4">
+      {scenarios.map((s) => (
+        <PlacementsLoader key={s.id} scenarioId={s.id} onLoad={setForId} />
+      ))}
+      <div className="rounded-lg border border-amber-200 dark:border-amber-700/50 bg-amber-50/40 dark:bg-amber-900/10 p-3">
+        <h4 className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-2 flex items-center gap-1">
+          <Diff className="w-3 h-3" /> What differs
+        </h4>
+        {!allLoaded && (
+          <div className="text-xs text-gray-500 italic py-2 flex items-center gap-1">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading scenario inputs…
+          </div>
+        )}
+        {allLoaded && scenarioRows.length === 0 && courseDiffs.length === 0 && (
+          <p className="text-xs text-gray-500 italic">
+            All settings and placements are identical across the selected scenarios.
+          </p>
+        )}
+        {allLoaded && scenarioRows.length > 0 && (
+          <DiffTable title="Scenario settings" scenarios={scenarios} rows={scenarioRows} />
+        )}
+        {allLoaded &&
+          courseDiffs.map((cd) => (
+            <DiffTable
+              key={cd.courseName}
+              title={cd.courseName}
+              scenarios={scenarios}
+              rows={cd.rows}
+              placementCounts={cd.counts}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function DiffTable({
+  title,
+  scenarios,
+  rows,
+  placementCounts,
+}: {
+  title: string;
+  scenarios: Scenario[];
+  rows: { label: string; values: string[] }[];
+  placementCounts?: number[];
+}) {
+  return (
+    <div className="mt-2 first:mt-0">
+      <div className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1 flex items-center gap-2">
+        {title}
+        {placementCounts && placementCounts.some((c) => c !== 1) && (
+          <span className="text-[10px] text-gray-400 font-normal">
+            (placements: {placementCounts.map((c) => (c === 0 ? '—' : String(c))).join(' / ')})
+          </span>
+        )}
+      </div>
+      <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500">
+            <tr>
+              <Th>Attribute</Th>
+              {scenarios.map((s) => (
+                <Th key={s.id}>{s.name}</Th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label} className="border-t border-gray-100 dark:border-gray-800">
+                <Td className="font-medium text-gray-600 dark:text-gray-300">{r.label}</Td>
+                {r.values.map((v, i) => (
+                  <Td
+                    key={i}
+                    className="bg-amber-50/70 dark:bg-amber-900/20 text-amber-900 dark:text-amber-100 font-semibold"
+                  >
+                    {v}
+                  </Td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
