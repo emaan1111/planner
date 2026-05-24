@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useScenarios,
   useScenarioFolders,
@@ -51,9 +51,42 @@ export function ScenarioSidebar() {
     sidebarOpen,
     setSidebarOpen,
     leftRailCollapsed,
+    leftRailWidth,
+    setLeftRailWidth,
     showSidebarRevenue,
     toggleSidebarRevenue,
   } = useScenariosStore();
+  // Resize handle only acts on the static desktop rail (md+), not the mobile
+  // drawer — its width is viewport-relative there.
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  const dragStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    dragStartRef.current = { startX: e.clientX, startWidth: leftRailWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+  const onResizeMove = (e: React.PointerEvent) => {
+    if (!dragStartRef.current) return;
+    const next = dragStartRef.current.startWidth + (e.clientX - dragStartRef.current.startX);
+    setLeftRailWidth(next);
+  };
+  const onResizeEnd = (e: React.PointerEvent) => {
+    if (!dragStartRef.current) return;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+    dragStartRef.current = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
   // Only fetch placements when the revenue toggle is on, so toggling off avoids
   // the cost.
   const { data: allPlacements = [] } = useAllPlacements(showSidebarRevenue);
@@ -179,17 +212,35 @@ export function ScenarioSidebar() {
         />
       )}
       <aside
+        style={isDesktop && !leftRailCollapsed ? { width: `${leftRailWidth}px` } : undefined}
         className={clsx(
           'flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900',
           // Mobile: slide-over drawer
           'fixed inset-y-0 left-0 z-40 w-[82vw] max-w-xs transform transition-transform duration-200 ease-out shadow-xl',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          // Desktop: static rail (hidden when collapsed)
+          // Desktop: static rail (hidden when collapsed). Width is driven by
+          // inline style above so the user can drag-resize it.
           leftRailCollapsed
             ? 'md:hidden'
-            : 'md:relative md:translate-x-0 md:shadow-none md:w-64 md:flex-shrink-0',
+            : 'md:relative md:translate-x-0 md:shadow-none md:flex-shrink-0 md:max-w-none',
         )}
       >
+        {/* Desktop drag-resize handle on the right edge */}
+        {!leftRailCollapsed && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize scenarios sidebar"
+            onPointerDown={onResizeStart}
+            onPointerMove={onResizeMove}
+            onPointerUp={onResizeEnd}
+            onPointerCancel={onResizeEnd}
+            onDoubleClick={() => setLeftRailWidth(256)}
+            className="hidden md:block absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize group z-10"
+          >
+            <div className="absolute inset-y-0 right-0 w-px bg-transparent group-hover:bg-indigo-400 group-active:bg-indigo-500 transition-colors" />
+          </div>
+        )}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Scenarios</h2>
         <div className="flex items-center gap-1">

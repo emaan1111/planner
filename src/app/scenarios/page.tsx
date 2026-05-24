@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Menu, BookOpen, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { ScenarioSidebar } from '@/components/scenarios/ScenarioSidebar';
@@ -26,7 +27,43 @@ export default function ScenariosPage() {
     setLeftRailCollapsed,
     rightRailCollapsed,
     setRightRailCollapsed,
+    rightRailWidth,
+    setRightRailWidth,
   } = useScenariosStore();
+
+  // Drag-resize the right rail. Only acts on the static desktop layout (lg+);
+  // the mobile drawer keeps its viewport-relative width.
+  const [isLgUp, setIsLgUp] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setIsLgUp(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  const rightDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const onRightResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    rightDragRef.current = { startX: e.clientX, startWidth: rightRailWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+  const onRightResizeMove = (e: React.PointerEvent) => {
+    if (!rightDragRef.current) return;
+    // Dragging left grows the panel, right shrinks it — inverted from the
+    // left rail because the handle lives on the aside's inner (left) edge.
+    const next = rightDragRef.current.startWidth - (e.clientX - rightDragRef.current.startX);
+    setRightRailWidth(next);
+  };
+  const onRightResizeEnd = (e: React.PointerEvent) => {
+    if (!rightDragRef.current) return;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+    rightDragRef.current = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
 
   return (
     <ScenarioUndoProvider>
@@ -106,17 +143,35 @@ export default function ScenariosPage() {
             />
           )}
           <aside
+            style={isLgUp && !rightRailCollapsed ? { width: `${rightRailWidth}px` } : undefined}
             className={clsx(
               'flex flex-col border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900',
               // Mobile/tablet: slide-over drawer from right
               'fixed inset-y-0 right-0 z-40 w-[88vw] max-w-sm transform transition-transform duration-200 ease-out shadow-xl',
               rightPanelOpen ? 'translate-x-0' : 'translate-x-full',
-              // Desktop (lg+): static rail (hidden when collapsed)
+              // Desktop (lg+): static rail (hidden when collapsed). Width is
+              // driven by inline style above so the user can drag-resize it.
               rightRailCollapsed
                 ? 'lg:hidden'
-                : 'lg:relative lg:translate-x-0 lg:shadow-none lg:w-80 lg:flex-shrink-0',
+                : 'lg:relative lg:translate-x-0 lg:shadow-none lg:flex-shrink-0 lg:max-w-none',
             )}
           >
+            {/* Desktop drag-resize handle on the left edge */}
+            {!rightRailCollapsed && (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize library and P&L sidebar"
+                onPointerDown={onRightResizeStart}
+                onPointerMove={onRightResizeMove}
+                onPointerUp={onRightResizeEnd}
+                onPointerCancel={onRightResizeEnd}
+                onDoubleClick={() => setRightRailWidth(320)}
+                className="hidden lg:block absolute top-0 left-0 h-full w-1.5 -ml-0.5 cursor-col-resize group z-10"
+              >
+                <div className="absolute inset-y-0 left-0 w-px bg-transparent group-hover:bg-indigo-400 group-active:bg-indigo-500 transition-colors" />
+              </div>
+            )}
             <button
               onClick={() => setRightPanelOpen(false)}
               className="lg:hidden absolute top-2 right-2 z-10 p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"

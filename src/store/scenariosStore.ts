@@ -20,6 +20,8 @@ interface ScenariosUIState {
   rightPanelOpen: boolean; // mobile library + P&L drawer
   leftRailCollapsed: boolean; // desktop scenarios rail hidden
   rightRailCollapsed: boolean; // desktop library + P&L rail hidden
+  leftRailWidth: number; // desktop scenarios rail width (px)
+  rightRailWidth: number; // desktop library + P&L rail width (px)
   viewMode: ScenarioViewMode;
   customMonths: ScenarioCustomMonth[];
   showDelivery: boolean; // show delivery bars on the calendar
@@ -46,6 +48,8 @@ interface ScenariosUIState {
   setRightPanelOpen: (open: boolean) => void;
   setLeftRailCollapsed: (collapsed: boolean) => void;
   setRightRailCollapsed: (collapsed: boolean) => void;
+  setLeftRailWidth: (px: number) => void;
+  setRightRailWidth: (px: number) => void;
   setViewMode: (mode: ScenarioViewMode) => void;
   setCustomMonths: (months: ScenarioCustomMonth[]) => void;
   toggleCustomMonth: (year: number, month: number) => void;
@@ -72,6 +76,8 @@ export const useScenariosStore = create<ScenariosUIState>()(
       rightPanelOpen: false,
       leftRailCollapsed: false,
       rightRailCollapsed: false,
+      leftRailWidth: 256, // matches the previous Tailwind w-64 default
+      rightRailWidth: 320, // matches the previous Tailwind w-80 default
       viewMode: 'month',
       customMonths: [],
       showDelivery: true,
@@ -106,6 +112,8 @@ export const useScenariosStore = create<ScenariosUIState>()(
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
       setLeftRailCollapsed: (collapsed) => set({ leftRailCollapsed: collapsed }),
       setRightRailCollapsed: (collapsed) => set({ rightRailCollapsed: collapsed }),
+      setLeftRailWidth: (px) => set({ leftRailWidth: Math.max(180, Math.min(560, Math.round(px))) }),
+      setRightRailWidth: (px) => set({ rightRailWidth: Math.max(220, Math.min(640, Math.round(px))) }),
       setViewMode: (mode) => set({ viewMode: mode }),
       setCustomMonths: (months) => set({ customMonths: months }),
       toggleCustomMonth: (year, month) => {
@@ -135,6 +143,8 @@ export const useScenariosStore = create<ScenariosUIState>()(
         currentMonth: state.currentMonth,
         leftRailCollapsed: state.leftRailCollapsed,
         rightRailCollapsed: state.rightRailCollapsed,
+        leftRailWidth: state.leftRailWidth,
+        rightRailWidth: state.rightRailWidth,
         viewMode: state.viewMode,
         customMonths: state.customMonths,
         showDelivery: state.showDelivery,
