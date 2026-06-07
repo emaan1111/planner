@@ -33,6 +33,7 @@ import { InboxBar } from './InboxBar';
 import { BulkActionBar } from './BulkActionBar';
 import { ArchivedView } from './ArchivedView';
 import { ProjectFormModal } from './ProjectFormModal';
+import { ProjectDetail } from './ProjectDetail';
 
 type ViewMode = 'board' | 'kanban' | 'cards' | 'timeline';
 type Scope = 'week' | 'all';
@@ -66,6 +67,7 @@ export function ProjectsHub() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [projectForm, setProjectForm] = useState<{ open: boolean; project: Project | null }>({ open: false, project: null });
   const [inboxCollapsed, setInboxCollapsed] = useState(false);
+  const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const now = useMemo(() => new Date(), []);
 
@@ -120,6 +122,13 @@ export function ProjectsHub() {
   const noProjectTasks = useMemo(
     () => boardTasks.filter((t) => !t.projectId || !tasksByProject.has(t.projectId)),
     [boardTasks, tasksByProject]
+  );
+
+  // Open-project detail (ignores week scope so you see the whole project).
+  const openProject = useMemo(() => activeProjects.find((p) => p.id === openProjectId) ?? null, [activeProjects, openProjectId]);
+  const openProjectTasks = useMemo(
+    () => (openProjectId ? tasks.filter((t) => isActiveBoardTask(t) && t.projectId === openProjectId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : []),
+    [tasks, openProjectId]
   );
 
   // In week scope, hide projects that have no in-week tasks.
@@ -255,7 +264,7 @@ export function ProjectsHub() {
                 return (
                   <button
                     key={v.id}
-                    onClick={() => setViewMode(v.id)}
+                    onClick={() => { setViewMode(v.id); setOpenProjectId(null); }}
                     className={clsx(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                       viewMode === v.id ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -279,6 +288,21 @@ export function ProjectsHub() {
             onDeleteTask={(id) => bulkTasks.mutate({ ids: [id], action: 'delete' })}
             onRestoreProject={(id) => updateProject.mutate({ id, updates: { archived: false } })}
             onDeleteProject={(id) => bulkProjects.mutate({ ids: [id], action: 'delete' })}
+          />
+        ) : openProject ? (
+          <ProjectDetail
+            project={openProject}
+            tasks={openProjectTasks}
+            selectedTaskIds={selectedTaskIds}
+            onToggleSelect={toggleSelect}
+            onBack={() => setOpenProjectId(null)}
+            onEditProject={(p) => setProjectForm({ open: true, project: p })}
+            onArchiveProject={(id) => { handleArchiveProject(id); setOpenProjectId(null); }}
+            onEditTask={setEditingTask}
+            onUpdateTask={handleUpdateTask}
+            onArchiveTask={handleArchiveTask}
+            onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
+            onAddTask={(title) => handleAddTask(openProject.id, title)}
           />
         ) : (
           <>
@@ -333,7 +357,7 @@ export function ProjectsHub() {
                 projects={visibleProjects}
                 tasksByProject={tasksByProject}
                 noProjectTasks={noProjectTasks}
-                onOpenProject={() => setViewMode('board')}
+                onOpenProject={(id) => setOpenProjectId(id)}
                 onEditProject={(p) => setProjectForm({ open: true, project: p })}
                 onArchiveProject={handleArchiveProject}
               />

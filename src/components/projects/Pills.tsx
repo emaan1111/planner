@@ -36,12 +36,13 @@ export function StatusPill({
   status,
   onChange,
   className,
-}: DropdownProps & { status: TaskStatus; onChange: (next: TaskStatus) => void }) {
+  fullWidth,
+}: DropdownProps & { status: TaskStatus; onChange: (next: TaskStatus) => void; fullWidth?: boolean }) {
   const [open, setOpen] = useState(false);
   const meta = STATUS_META[status];
 
   return (
-    <div className="relative inline-block">
+    <div className={clsx('relative', fullWidth ? 'w-full' : 'inline-block')}>
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -49,6 +50,7 @@ export function StatusPill({
         }}
         className={clsx(
           'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-transform hover:scale-[1.03] whitespace-nowrap',
+          fullWidth && 'w-full justify-center',
           meta.pill,
           className
         )}

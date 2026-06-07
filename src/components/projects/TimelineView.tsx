@@ -2,14 +2,7 @@
 
 import { useMemo } from 'react';
 import clsx from 'clsx';
-import {
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  differenceInCalendarDays,
-  isSameDay,
-  format,
-} from 'date-fns';
+import { startOfWeek, endOfWeek, eachDayOfInterval, differenceInCalendarDays, isSameDay, format } from 'date-fns';
 import { CalendarRange } from 'lucide-react';
 import { Task, Project, colorClasses, EventColor } from '@/types';
 
@@ -21,39 +14,36 @@ interface TimelineViewProps {
   onEditTask: (task: Task) => void;
 }
 
-const DAY_W = 30; // px per day
-const LABEL_W = 160; // px for the project label column
+const DAY_W = 54;
+const LABEL_W = 56;
+const ROW_H = 60;
+const BAR_H = 42;
 
-function barRange(task: Task): { start: Date; end: Date } | null {
-  if (!task.dueDate) return null;
-  const end = new Date(task.dueDate);
-  const created = new Date(task.createdAt);
-  // Bar runs from when it was created up to its due date (min 1 day).
-  const start = created < end ? created : end;
-  return { start, end };
+interface Row {
+  task: Task;
+  color: EventColor;
+  initial: string;
+  start: Date;
+  end: Date;
 }
 
 export function TimelineView({ projects, tasksByProject, noProjectTasks, now, onEditTask }: TimelineViewProps) {
-  const rows = useMemo(() => {
-    const list: { id: string; name: string; color: EventColor; tasks: Task[] }[] = projects.map((p) => ({
-      id: p.id,
-      name: p.name,
-      color: p.color,
-      tasks: (tasksByProject.get(p.id) ?? []).filter((t) => t.dueDate),
-    }));
-    const orphan = noProjectTasks.filter((t) => t.dueDate);
-    if (orphan.length) list.push({ id: '__none__', name: 'No project', color: 'gray', tasks: orphan });
-    return list.filter((r) => r.tasks.length > 0);
+  const rows = useMemo<Row[]>(() => {
+    const out: Row[] = [];
+    const push = (task: Task, color: EventColor, label: string) => {
+      if (!task.dueDate) return;
+      const end = new Date(task.dueDate);
+      const created = new Date(task.createdAt);
+      out.push({ task, color, initial: (label[0] ?? '•').toUpperCase(), start: created < end ? created : end, end });
+    };
+    projects.forEach((p) => (tasksByProject.get(p.id) ?? []).forEach((t) => push(t, p.color, p.name)));
+    noProjectTasks.forEach((t) => push(t, 'gray', t.title));
+    return out.sort((a, b) => a.start.getTime() - b.start.getTime());
   }, [projects, tasksByProject, noProjectTasks]);
 
   const { rangeStart, days } = useMemo(() => {
     const dates: Date[] = [now];
-    rows.forEach((r) => r.tasks.forEach((t) => {
-      const range = barRange(t);
-      if (range) {
-        dates.push(range.start, range.end);
-      }
-    }));
+    rows.forEach((r) => dates.push(r.start, r.end));
     const minD = dates.reduce((a, b) => (a < b ? a : b), dates[0]);
     const maxD = dates.reduce((a, b) => (a > b ? a : b), dates[0]);
     const start = startOfWeek(minD, { weekStartsOn: 1 });
@@ -65,81 +55,90 @@ export function TimelineView({ projects, tasksByProject, noProjectTasks, now, on
     return (
       <div className="flex flex-col items-center justify-center py-16 text-gray-400">
         <CalendarRange className="w-10 h-10 mb-3 opacity-50" />
-        <p className="text-sm">No tasks with due dates yet — add due dates to see them on the timeline.</p>
+        <p className="text-sm">Add due dates to your tasks to see them on the timeline.</p>
       </div>
     );
   }
 
   const gridW = days.length * DAY_W;
+  const todayX = differenceInCalendarDays(now, rangeStart) * DAY_W + DAY_W / 2;
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-x-auto">
-      <div style={{ width: LABEL_W + gridW }}>
-        {/* Header: day axis */}
-        <div className="flex sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-          <div style={{ width: LABEL_W }} className="flex-shrink-0 px-3 py-2 text-xs font-semibold text-gray-500" />
-          <div className="flex">
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-x-auto shadow-sm">
+      <div style={{ width: LABEL_W + gridW }} className="relative">
+        {/* Day axis header */}
+        <div className="flex border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900 z-20">
+          <div style={{ width: LABEL_W }} className="flex-shrink-0" />
+          <div className="flex relative">
             {days.map((d) => {
               const isToday = isSameDay(d, now);
-              const isMonthStart = d.getDate() === 1;
+              const isSunday = d.getDay() === 0;
               return (
-                <div
-                  key={d.toISOString()}
-                  style={{ width: DAY_W }}
-                  className={clsx(
-                    'flex-shrink-0 text-center py-1 border-l border-gray-100 dark:border-gray-800',
-                    isToday && 'bg-blue-50 dark:bg-blue-900/20'
+                <div key={d.toISOString()} style={{ width: DAY_W }} className="flex-shrink-0 text-center pt-2 pb-1">
+                  {isToday ? (
+                    <div className="mx-auto w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center shadow">
+                      {format(d, 'd')}
+                    </div>
+                  ) : (
+                    <div className={clsx('text-sm font-semibold tabular-nums', isSunday ? 'text-gray-400' : 'text-gray-500 dark:text-gray-400')}>
+                      {format(d, 'd')}
+                    </div>
                   )}
-                >
-                  <div className={clsx('text-[9px] uppercase', isMonthStart ? 'text-gray-500 font-bold' : 'text-gray-300 dark:text-gray-600')}>
-                    {isMonthStart || d.getDay() === 1 ? format(d, 'MMM') : ''}
-                  </div>
-                  <div className={clsx('text-[10px] tabular-nums', isToday ? 'text-blue-600 font-bold' : 'text-gray-500')}>{format(d, 'd')}</div>
+                  <div className="text-[9px] uppercase text-gray-300 dark:text-gray-600 h-3">{isSunday ? 'Sun' : d.getDate() === 1 ? format(d, 'MMM') : ''}</div>
                 </div>
               );
             })}
           </div>
         </div>
 
+        {/* Today vertical line spanning the rows */}
+        <div
+          className="absolute z-10 w-0.5 bg-blue-500"
+          style={{ left: LABEL_W + todayX, top: 0, bottom: 0 }}
+        />
+
+        {/* Column stripes */}
+        <div className="absolute inset-y-0 flex pointer-events-none" style={{ left: LABEL_W }}>
+          {days.map((d, i) => (
+            <div key={d.toISOString()} style={{ width: DAY_W }} className={clsx('h-full', i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-800/20' : 'bg-transparent')} />
+          ))}
+        </div>
+
         {/* Rows */}
-        {rows.map((row) => {
-          const accent = colorClasses[row.color] ?? colorClasses.blue;
-          return (
-            <div key={row.id} className="flex border-b border-gray-100 dark:border-gray-800">
-              <div style={{ width: LABEL_W }} className="flex-shrink-0 flex items-center gap-2 px-3 py-2">
-                <span className={clsx('w-2.5 h-2.5 rounded-full flex-shrink-0', accent.bg)} />
-                <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">{row.name}</span>
+        <div className="relative">
+          {rows.map((row) => {
+            const accent = colorClasses[row.color] ?? colorClasses.blue;
+            const offset = differenceInCalendarDays(row.start, rangeStart);
+            const span = Math.max(1, differenceInCalendarDays(row.end, row.start) + 1);
+            return (
+              <div key={row.task.id} className="flex items-center" style={{ height: ROW_H }}>
+                {/* avatar / project marker */}
+                <div style={{ width: LABEL_W }} className="flex-shrink-0 flex items-center justify-center">
+                  <div className={clsx('w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm', accent.bg)}>
+                    {row.initial}
+                  </div>
+                </div>
+                {/* track */}
+                <div className="relative flex-1" style={{ height: ROW_H }}>
+                  <button
+                    onClick={() => onEditTask(row.task)}
+                    style={{ left: offset * DAY_W + 3, width: span * DAY_W - 6, height: BAR_H, top: (ROW_H - BAR_H) / 2 }}
+                    className={clsx(
+                      'absolute z-[2] rounded-full pl-4 pr-9 flex items-center text-sm font-bold text-white truncate shadow-md hover:brightness-105 hover:shadow-lg transition-all',
+                      accent.bg,
+                      row.task.status === 'done' && 'opacity-50'
+                    )}
+                    title={`${row.task.title} · due ${format(row.end, 'MMM d')}`}
+                  >
+                    <span className="truncate">{row.task.title}</span>
+                    {/* end dot */}
+                    <span className="absolute right-2 w-5 h-5 rounded-full bg-white/40 ring-2 ring-white/60" />
+                  </button>
+                </div>
               </div>
-              <div className="relative flex-1" style={{ minHeight: row.tasks.length * 26 + 8 }}>
-                {/* today line */}
-                <div
-                  className="absolute top-0 bottom-0 w-px bg-blue-400/60 z-0"
-                  style={{ left: differenceInCalendarDays(now, rangeStart) * DAY_W + DAY_W / 2 }}
-                />
-                {row.tasks.map((t, i) => {
-                  const range = barRange(t)!;
-                  const offset = differenceInCalendarDays(range.start, rangeStart);
-                  const span = Math.max(1, differenceInCalendarDays(range.end, range.start) + 1);
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => onEditTask(t)}
-                      style={{ left: offset * DAY_W, width: span * DAY_W - 4, top: i * 26 + 4 }}
-                      className={clsx(
-                        'absolute h-[22px] rounded-md px-2 flex items-center text-[10px] font-medium text-white truncate shadow-sm hover:brightness-110 transition-all z-[1]',
-                        accent.bg,
-                        t.status === 'done' && 'opacity-50'
-                      )}
-                      title={`${t.title} · due ${format(new Date(t.dueDate!), 'MMM d')}`}
-                    >
-                      {t.title}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -105,6 +105,16 @@ export function openCount(tasks: Task[]): number {
   return tasks.filter((t) => !t.archived && t.status !== 'done').length;
 }
 
+/** Shared CSS grid columns so the Main-Table header and task rows line up. */
+export const BOARD_GRID = '26px 22px minmax(0,1fr) 136px 92px 96px 30px';
+
+/** Count of tasks per status (only statuses that appear), for the summary strip. */
+export function statusCounts(tasks: Task[]): { status: TaskStatus; count: number }[] {
+  const counts = new Map<TaskStatus, number>();
+  tasks.forEach((t) => counts.set(t.status, (counts.get(t.status) ?? 0) + 1));
+  return STATUS_ORDER.filter((s) => counts.has(s)).map((s) => ({ status: s, count: counts.get(s)! }));
+}
+
 /** Tasks visible on the active board: not archived, in the 'active' bucket. */
 export function isActiveBoardTask(task: Task): boolean {
   return !task.archived && taskBucket(task) === 'active';

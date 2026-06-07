@@ -66,17 +66,17 @@ function KanbanColumn({ status, tasks, projectsById, onEdit }: { status: TaskSta
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const meta = STATUS_META[status];
   return (
-    <div className="flex-1 min-w-[230px] flex flex-col">
-      <div className={clsx('flex items-center gap-2 px-3 py-2 rounded-t-xl', meta.columnTint)}>
-        <span className={clsx('w-2.5 h-2.5 rounded-full', meta.dot)} />
-        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{meta.label}</span>
-        <span className="text-xs text-gray-400 ml-auto">{tasks.length}</span>
+    <div className="flex-1 min-w-[250px] flex flex-col">
+      {/* Bold solid colored header (monday style) */}
+      <div className={clsx('flex items-center gap-2 px-3 py-2.5 rounded-t-xl text-white shadow-sm', meta.dot)}>
+        <span className="text-sm font-bold tracking-tight">{meta.label}</span>
+        <span className="text-xs font-semibold bg-white/25 px-1.5 py-0.5 rounded-full">{tasks.length}</span>
       </div>
       <div
         ref={setNodeRef}
         className={clsx(
-          'flex-1 space-y-2 p-2 rounded-b-xl border border-t-0 border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/40 min-h-[120px] transition-colors',
-          isOver && 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-300 dark:ring-blue-700'
+          'flex-1 space-y-2 p-2 rounded-b-xl border border-t-0 border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 min-h-[140px] transition-colors',
+          isOver && 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-inset ring-blue-300 dark:ring-blue-700'
         )}
       >
         {tasks.map((task) => (

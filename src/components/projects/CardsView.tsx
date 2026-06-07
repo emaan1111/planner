@@ -2,12 +2,10 @@
 
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
-import { MoreVertical, Archive, Pencil, ListTodo } from 'lucide-react';
+import { MoreVertical, Archive, Pencil, ListTodo, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { Task, Project, colorClasses } from '@/types';
 import { projectProgress, openCount } from '@/lib/pm';
-import { ProgressBar } from './ProgressBar';
-import { StatusTag } from './Pills';
 
 interface CardsViewProps {
   projects: Project[];
@@ -35,28 +33,30 @@ function ProjectCard({
   const accent = colorClasses[project.color] ?? colorClasses.blue;
   const progress = projectProgress(tasks);
   const open = openCount(tasks);
+  const done = tasks.filter((t) => t.status === 'done' && !t.archived).length;
   const preview = tasks.filter((t) => t.status !== 'done').slice(0, 3);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
+    <motion.button
+      onClick={onOpen}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+      whileHover={{ y: -4 }}
+      className={clsx('relative text-left rounded-3xl overflow-hidden shadow-lg group', accent.bg)}
     >
-      <div className={clsx('h-1.5', accent.bg)} />
-      <div className="p-4">
+      {/* gradient sheen overlay for depth on any project color */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-black/30 pointer-events-none" />
+
+      <div className="relative p-5 text-white min-h-[200px] flex flex-col">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <button onClick={onOpen} className="flex items-center gap-2 min-w-0 text-left">
-            <span className={clsx('w-3 h-3 rounded-full flex-shrink-0', accent.bg)} />
-            <h3 className="text-base font-bold text-gray-900 dark:text-white truncate">{project.name}</h3>
-          </button>
-          <div className="relative flex-shrink-0">
-            <button onClick={() => setMenuOpen((v) => !v)} className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded">
+          <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm pr-2">{project.name}</h3>
+          <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setMenuOpen((v) => !v)} className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/20">
               <MoreVertical className="w-4 h-4" />
             </button>
             {menuOpen && (
               <>
-                <button className="fixed inset-0 z-30 cursor-default" onClick={() => setMenuOpen(false)} aria-hidden tabIndex={-1} />
+                <span className="fixed inset-0 z-30 cursor-default" onClick={() => setMenuOpen(false)} aria-hidden />
                 <div className="absolute right-0 z-40 mt-1 min-w-[140px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-1">
                   <button onClick={() => { setMenuOpen(false); onEdit(); }} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200">
                     <Pencil className="w-3.5 h-3.5" /> Edit
@@ -70,36 +70,44 @@ function ProjectCard({
           </div>
         </div>
 
-        {project.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{project.description}</p>}
+        {project.description && <p className="text-sm text-white/85 mb-4 line-clamp-2">{project.description}</p>}
 
-        <ProgressBar percent={progress} color={project.color} className="mb-3" />
-
-        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mb-3">
-          <span className="flex items-center gap-1"><ListTodo className="w-3.5 h-3.5" /> {open} open</span>
-          <span>{tasks.length} total</span>
+        {/* big progress ring-ish number */}
+        <div className="flex items-end gap-2 mb-3">
+          <span className="text-4xl font-black leading-none drop-shadow">{progress}%</span>
+          <span className="text-xs text-white/80 mb-1">complete</span>
+        </div>
+        <div className="h-2 rounded-full bg-black/20 overflow-hidden mb-4">
+          <div className="h-full rounded-full bg-white/90 transition-all" style={{ width: `${progress}%` }} />
         </div>
 
-        <div className="space-y-1.5">
-          {preview.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">All clear 🎉</p>
-          ) : (
-            preview.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 text-xs">
-                <StatusTag status={t.status} />
-                <span className="truncate text-gray-700 dark:text-gray-300">{t.title}</span>
-              </div>
-            ))
-          )}
-          {open > 3 && <button onClick={onOpen} className="text-xs text-blue-600 hover:text-blue-700 font-medium">+{open - 3} more</button>}
+        <div className="flex items-center gap-4 text-xs text-white/90 mb-3">
+          <span className="flex items-center gap-1"><ListTodo className="w-3.5 h-3.5" /> {open} open</span>
+          <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {done} done</span>
+        </div>
+
+        <div className="mt-auto space-y-1">
+          {preview.map((t) => (
+            <div key={t.id} className="flex items-center gap-1.5 text-xs text-white/90">
+              <span className="w-1.5 h-1.5 rounded-full bg-white/70 flex-shrink-0" />
+              <span className="truncate">{t.title}</span>
+            </div>
+          ))}
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-white pt-1 opacity-80 group-hover:opacity-100 transition-opacity">
+            Open project <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </span>
         </div>
       </div>
-    </motion.div>
+    </motion.button>
   );
 }
 
 export function CardsView({ projects, tasksByProject, noProjectTasks, onOpenProject, onEditProject, onArchiveProject }: CardsViewProps) {
+  if (projects.length === 0 && noProjectTasks.length === 0) {
+    return <div className="py-16 text-center text-sm text-gray-400">No projects yet — create one to see cards here.</div>;
+  }
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
       {projects.map((project) => (
         <ProjectCard
           key={project.id}
@@ -110,17 +118,6 @@ export function CardsView({ projects, tasksByProject, noProjectTasks, onOpenProj
           onArchive={() => onArchiveProject(project.id)}
         />
       ))}
-      {noProjectTasks.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4"
-        >
-          <h3 className="text-base font-bold text-gray-600 dark:text-gray-300 mb-3">No project</h3>
-          <ProgressBar percent={projectProgress(noProjectTasks)} color="gray" className="mb-3" />
-          <p className="text-xs text-gray-500">{openCount(noProjectTasks)} open · {noProjectTasks.length} total</p>
-        </motion.div>
-      )}
     </div>
   );
 }
