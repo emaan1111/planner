@@ -368,6 +368,7 @@ export function ProjectsHub() {
                 noProjectTasks={noProjectTasks}
                 now={now}
                 onEditTask={setEditingTask}
+                onResize={(id, updates) => updateTask.mutate({ id, updates })}
               />
             )}
           </>

@@ -70,6 +70,7 @@ export interface Task {
   priority: TaskPriority;
   bucket?: TaskBucket;
   archived?: boolean;
+  startDate?: Date;
   dueDate?: Date;
   linkedPlanType?: PlanType;
   linkedEventId?: string;

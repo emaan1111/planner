@@ -48,6 +48,7 @@ model Task {
   priority       String   @default("medium") // low, medium, high
   bucket         String   @default("active") // inbox | active | someday
   archived       Boolean  @default(false)
+  startDate      DateTime?
   dueDate        DateTime?
   linkedPlanType String?
   linkedEventId  String?

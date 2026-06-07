@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
         priority: body.priority ?? 'medium',
         bucket: body.bucket ?? 'active',
         archived: body.archived ?? false,
+        startDate: body.startDate ? new Date(body.startDate) : null,
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
         linkedPlanType: body.linkedPlanType || null,
         linkedEventId: body.linkedEventId,

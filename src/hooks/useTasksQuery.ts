@@ -12,8 +12,9 @@ async function fetchTasks(): Promise<Task[]> {
   const response = await fetch('/api/tasks');
   if (!response.ok) throw new Error('Failed to fetch tasks');
   const data = await response.json();
-  return data.map((task: Task & { dueDate?: string; createdAt: string; updatedAt: string }) => ({
+  return data.map((task: Task & { startDate?: string; dueDate?: string; createdAt: string; updatedAt: string }) => ({
     ...task,
+    startDate: task.startDate ? new Date(task.startDate) : undefined,
     dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
     createdAt: new Date(task.createdAt),
     updatedAt: new Date(task.updatedAt),
@@ -30,6 +31,7 @@ async function createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'o
   const data = await response.json();
   return {
     ...data,
+    startDate: data.startDate ? new Date(data.startDate) : undefined,
     dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
     createdAt: new Date(data.createdAt),
     updatedAt: new Date(data.updatedAt),
@@ -46,6 +48,7 @@ async function updateTask(id: string, updates: Partial<Task>): Promise<Task> {
   const data = await response.json();
   return {
     ...data,
+    startDate: data.startDate ? new Date(data.startDate) : undefined,
     dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
     createdAt: new Date(data.createdAt),
     updatedAt: new Date(data.updatedAt),

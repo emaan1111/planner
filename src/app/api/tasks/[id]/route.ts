@@ -44,6 +44,7 @@ export async function PUT(
     if ('priority' in body) data.priority = body.priority;
     if ('bucket' in body) data.bucket = body.bucket;
     if ('archived' in body) data.archived = body.archived;
+    if ('startDate' in body) data.startDate = body.startDate ? new Date(body.startDate) : null;
     if ('dueDate' in body) data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
     if ('linkedPlanType' in body) data.linkedPlanType = body.linkedPlanType || null;
     if ('linkedEventId' in body) data.linkedEventId = body.linkedEventId || null;
