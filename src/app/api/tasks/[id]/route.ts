@@ -35,17 +35,24 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    // Partial update: only touch fields actually present in the request body so a
+    // single-field write (e.g. an inline status pill) never clears the others.
+    const data: Record<string, unknown> = {};
+    if ('title' in body) data.title = body.title;
+    if ('description' in body) data.description = body.description;
+    if ('status' in body) data.status = body.status;
+    if ('priority' in body) data.priority = body.priority;
+    if ('bucket' in body) data.bucket = body.bucket;
+    if ('archived' in body) data.archived = body.archived;
+    if ('dueDate' in body) data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    if ('linkedPlanType' in body) data.linkedPlanType = body.linkedPlanType || null;
+    if ('linkedEventId' in body) data.linkedEventId = body.linkedEventId || null;
+    if ('projectId' in body) data.projectId = body.projectId || null;
+    if ('order' in body) data.order = body.order;
+
     const task = await prisma.task.update({
       where: { id },
-      data: {
-        title: body.title,
-        description: body.description,
-        status: body.status,
-        priority: body.priority,
-        dueDate: body.dueDate ? new Date(body.dueDate) : null,
-        linkedPlanType: body.linkedPlanType,
-        linkedEventId: body.linkedEventId,
-      },
+      data,
     });
 
     return NextResponse.json(task);

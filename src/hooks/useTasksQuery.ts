@@ -68,6 +68,57 @@ async function reorderTasks(orderedIds: string[]): Promise<void> {
   if (!response.ok) throw new Error('Failed to reorder tasks');
 }
 
+export type TaskBulkAction =
+  | 'archive'
+  | 'restore'
+  | 'setStatus'
+  | 'setPriority'
+  | 'setProject'
+  | 'setBucket'
+  | 'delete';
+
+export interface TaskBulkPayload {
+  ids: string[];
+  action: TaskBulkAction;
+  value?: string;
+}
+
+async function bulkUpdateTasks(payload: TaskBulkPayload): Promise<void> {
+  const response = await fetch('/api/tasks/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to update tasks');
+}
+
+// Apply a bulk action to the cached task list optimistically.
+function applyBulkToTasks(tasks: Task[], { ids, action, value }: TaskBulkPayload): Task[] {
+  const idSet = new Set(ids);
+  if (action === 'delete') {
+    return tasks.filter((t) => !idSet.has(t.id));
+  }
+  return tasks.map((t) => {
+    if (!idSet.has(t.id)) return t;
+    switch (action) {
+      case 'archive':
+        return { ...t, archived: true, updatedAt: new Date() };
+      case 'restore':
+        return { ...t, archived: false, updatedAt: new Date() };
+      case 'setStatus':
+        return { ...t, status: (value as Task['status']) ?? t.status, updatedAt: new Date() };
+      case 'setPriority':
+        return { ...t, priority: (value as Task['priority']) ?? t.priority, updatedAt: new Date() };
+      case 'setProject':
+        return { ...t, projectId: value || undefined, updatedAt: new Date() };
+      case 'setBucket':
+        return { ...t, bucket: (value as Task['bucket']) ?? t.bucket, updatedAt: new Date() };
+      default:
+        return t;
+    }
+  });
+}
+
 // Query key factory
 export const taskKeys = {
   all: ['tasks'] as const,
@@ -174,6 +225,35 @@ export function useDeleteTask() {
         queryClient.setQueryData(taskKeys.all, context.previousTasks);
       }
       toast.error(getErrorMessage(_error, 'Failed to delete task'));
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+  });
+}
+
+// Hook to bulk-update tasks (archive/restore/setStatus/setPriority/setProject/setBucket/delete)
+export function useBulkUpdateTasks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: bulkUpdateTasks,
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.all });
+
+      const previousTasks = queryClient.getQueryData<Task[]>(taskKeys.all);
+
+      if (previousTasks) {
+        queryClient.setQueryData<Task[]>(taskKeys.all, applyBulkToTasks(previousTasks, payload));
+      }
+
+      return { previousTasks };
+    },
+    onError: (_error, _payload, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.all, context.previousTasks);
+      }
+      toast.error(getErrorMessage(_error, 'Failed to update tasks'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });

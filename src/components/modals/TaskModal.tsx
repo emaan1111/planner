@@ -154,7 +154,7 @@ export function TaskModal({ isOpen, onClose, selectedTask }: TaskModalProps) {
                   <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Status</label>
                     <div className="space-y-2">
-                      {(['todo', 'in-progress', 'scheduled', 'done'] as const).map((status) => (
+                      {(['todo', 'in-progress', 'stuck', 'scheduled', 'done'] as const).map((status) => (
                         <button
                           key={status}
                           type="button"

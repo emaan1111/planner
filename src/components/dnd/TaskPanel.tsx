@@ -315,6 +315,10 @@ export function TaskPanel() {
   }, [isResizing]);
 
   const draggableTasks = useMemo(() => tasks.filter(t => {
+    // Keep PM-hub-only tasks out of the calendar scheduling panel:
+    // archived tasks, untriaged inbox dumps, and parked someday ideas.
+    if (t.archived) return false;
+    if (t.bucket === 'inbox' || t.bucket === 'someday') return false;
     // Filter out done and scheduled tasks
     if (t.status === 'done' || t.status === 'scheduled') return false;
     // Apply plan type filter

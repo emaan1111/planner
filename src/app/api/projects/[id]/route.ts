@@ -37,14 +37,19 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    // Partial update: only set provided fields so single-field writes (archive,
+    // reorder, recolor) don't clear name/description.
+    const data: Record<string, unknown> = {};
+    if ('name' in body) data.name = body.name;
+    if ('description' in body) data.description = body.description;
+    if ('color' in body) data.color = body.color;
+    if ('isActive' in body) data.isActive = body.isActive;
+    if ('archived' in body) data.archived = body.archived;
+    if ('order' in body) data.order = body.order;
+
     const project = await prisma.project.update({
       where: { id },
-      data: {
-        name: body.name,
-        description: body.description,
-        color: body.color,
-        isActive: body.isActive,
-      },
+      data,
     });
 
     return NextResponse.json(project);

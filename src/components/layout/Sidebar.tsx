@@ -7,7 +7,7 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/u
 import { useDecisions, useCreateDecision, useUpdateDecision, useDeleteDecision } from '@/hooks/useDecisionsQuery';
 import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { PlanType, colorClasses, EventColor, Task, KeyDecision } from '@/types';
-import { Plus, Filter, ChevronDown, Star, Trash2, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List, GripVertical, Edit2 } from 'lucide-react';
+import { Plus, Filter, ChevronDown, Star, Trash2, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List, GripVertical, Edit2, LayoutGrid } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -195,6 +195,20 @@ export function Sidebar() {
             <List className="w-3.5 h-3.5" />
             <span>All Events</span>
             <span className="ml-auto text-xs text-gray-400">{events.length}</span>
+          </Link>
+
+          {/* Projects Hub Link */}
+          <Link
+            href="/projects"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors mt-1 font-medium"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Projects</span>
+            {tasks.filter((t) => t.bucket === 'inbox' && !t.archived).length > 0 && (
+              <span className="ml-auto text-xs bg-purple-500 text-white px-1.5 py-0.5 rounded-full">
+                {tasks.filter((t) => t.bucket === 'inbox' && !t.archived).length}
+              </span>
+            )}
           </Link>
 
           {/* CFO Scenarios Link */}
@@ -580,6 +594,7 @@ export function Sidebar() {
                                   'in-progress': 'scheduled',
                                   'scheduled': 'done',
                                   'done': 'todo',
+                                  'stuck': 'in-progress',
                                 };
                                 updateTask(task.id, { status: nextStatus[task.status] });
                               }}

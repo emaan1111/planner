@@ -271,6 +271,7 @@ export default function TasksPage() {
       'in-progress': 'scheduled',
       'scheduled': 'done',
       'done': 'todo',
+      'stuck': 'in-progress',
     };
     updateTask(task.id, { status: nextStatus[task.status] });
   };
@@ -292,7 +293,7 @@ export default function TasksPage() {
     }
     // Sort by status, then priority
     return [...filteredTasks].sort((a, b) => {
-      const statusOrder: Record<Task['status'], number> = { 'todo': 0, 'in-progress': 1, 'scheduled': 2, 'done': 3 };
+      const statusOrder: Record<Task['status'], number> = { 'todo': 0, 'in-progress': 1, 'stuck': 2, 'scheduled': 3, 'done': 4 };
       const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
       
       if (statusOrder[a.status] !== statusOrder[b.status]) {

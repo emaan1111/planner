@@ -49,13 +49,18 @@ export interface Project {
   description?: string;
   color: EventColor;
   isActive: boolean;
+  archived?: boolean;
+  order?: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 // Task Management
-export type TaskStatus = 'todo' | 'in-progress' | 'scheduled' | 'done';
+export type TaskStatus = 'todo' | 'in-progress' | 'scheduled' | 'done' | 'stuck';
 export type TaskPriority = 'low' | 'medium' | 'high';
+// Lifecycle bucket: inbox = quick-dumped/untriaged, active = in a project/working set,
+// someday = parked idea hidden from weekly + active views until revived.
+export type TaskBucket = 'inbox' | 'active' | 'someday';
 
 export interface Task {
   id: string;
@@ -63,6 +68,8 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   priority: TaskPriority;
+  bucket?: TaskBucket;
+  archived?: boolean;
   dueDate?: Date;
   linkedPlanType?: PlanType;
   linkedEventId?: string;

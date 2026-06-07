@@ -56,6 +56,26 @@ async function deleteProject(id: string): Promise<void> {
   if (!response.ok) throw new Error('Failed to delete project');
 }
 
+async function reorderProjects(orderedIds: string[]): Promise<void> {
+  const response = await fetch('/api/projects', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderedIds }),
+  });
+  if (!response.ok) throw new Error('Failed to reorder projects');
+}
+
+export type ProjectBulkAction = 'archive' | 'restore' | 'delete';
+
+async function bulkUpdateProjects(payload: { ids: string[]; action: ProjectBulkAction }): Promise<void> {
+  const response = await fetch('/api/projects/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to update projects');
+}
+
 // Query key factory
 export const projectKeys = {
   all: ['projects'] as const,
@@ -132,6 +152,80 @@ export function useUpdateProject() {
         queryClient.setQueryData(projectKeys.all, context.previousProjects);
       }
       toast.error(getErrorMessage(_error, 'Failed to update project'));
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+  });
+}
+
+// Hook to reorder projects
+export function useReorderProjects() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: reorderProjects,
+    onMutate: async (orderedIds) => {
+      await queryClient.cancelQueries({ queryKey: projectKeys.all });
+
+      const previousProjects = queryClient.getQueryData<Project[]>(projectKeys.all);
+
+      if (previousProjects) {
+        const projectMap = new Map(previousProjects.map((p) => [p.id, p]));
+        const reordered = orderedIds
+          .map((id) => projectMap.get(id))
+          .filter((p): p is Project => p !== undefined);
+        const orderedSet = new Set(orderedIds);
+        const remaining = previousProjects.filter((p) => !orderedSet.has(p.id));
+
+        queryClient.setQueryData<Project[]>(
+          projectKeys.all,
+          [...reordered, ...remaining].map((p, i) => ({ ...p, order: i }))
+        );
+      }
+
+      return { previousProjects };
+    },
+    onError: (_error, _orderedIds, context) => {
+      if (context?.previousProjects) {
+        queryClient.setQueryData(projectKeys.all, context.previousProjects);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+  });
+}
+
+// Hook to bulk-update projects (archive/restore/delete)
+export function useBulkUpdateProjects() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: bulkUpdateProjects,
+    onMutate: async ({ ids, action }) => {
+      await queryClient.cancelQueries({ queryKey: projectKeys.all });
+
+      const previousProjects = queryClient.getQueryData<Project[]>(projectKeys.all);
+      const idSet = new Set(ids);
+
+      if (previousProjects) {
+        const next =
+          action === 'delete'
+            ? previousProjects.filter((p) => !idSet.has(p.id))
+            : previousProjects.map((p) =>
+                idSet.has(p.id) ? { ...p, archived: action === 'archive', updatedAt: new Date() } : p
+              );
+        queryClient.setQueryData<Project[]>(projectKeys.all, next);
+      }
+
+      return { previousProjects };
+    },
+    onError: (_error, _payload, context) => {
+      if (context?.previousProjects) {
+        queryClient.setQueryData(projectKeys.all, context.previousProjects);
+      }
+      toast.error(getErrorMessage(_error, 'Failed to update projects'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.all });

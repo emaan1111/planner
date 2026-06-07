@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const linkedPlanType = searchParams.get('linkedPlanType');
     const linkedEventId = searchParams.get('linkedEventId');
+    const bucket = searchParams.get('bucket');
+    const archived = searchParams.get('archived');
 
     const where: Record<string, unknown> = {};
 
@@ -19,6 +21,12 @@ export async function GET(request: NextRequest) {
     }
     if (linkedEventId) {
       where.linkedEventId = linkedEventId;
+    }
+    if (bucket) {
+      where.bucket = bucket;
+    }
+    if (archived === 'true' || archived === 'false') {
+      where.archived = archived === 'true';
     }
 
     const tasks = await prisma.task.findMany({
@@ -57,6 +65,8 @@ export async function POST(request: NextRequest) {
         description: body.description,
         status: body.status ?? 'todo',
         priority: body.priority ?? 'medium',
+        bucket: body.bucket ?? 'active',
+        archived: body.archived ?? false,
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
         linkedPlanType: body.linkedPlanType || null,
         linkedEventId: body.linkedEventId,
