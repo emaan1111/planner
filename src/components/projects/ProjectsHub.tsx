@@ -149,8 +149,8 @@ export function ProjectsHub() {
   const clearSelection = useCallback(() => setSelectedTaskIds(new Set()), []);
 
   // ---- Task handlers ----
-  const handleAddTask = useCallback((projectId: string | undefined, title: string) => {
-    createTask.mutate({ title, status: 'todo', priority: 'medium', bucket: 'active', projectId });
+  const handleAddTask = useCallback((projectId: string | undefined, title: string, overrides?: Partial<Task>) => {
+    createTask.mutate({ title, status: 'todo', priority: 'medium', bucket: 'active', projectId, ...overrides });
   }, [createTask]);
 
   const handleCapture = useCallback((title: string) => {
@@ -302,7 +302,7 @@ export function ProjectsHub() {
             onUpdateTask={handleUpdateTask}
             onArchiveTask={handleArchiveTask}
             onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
-            onAddTask={(title) => handleAddTask(openProject.id, title)}
+            onAddTask={(title, overrides) => handleAddTask(openProject.id, title, overrides)}
           />
         ) : (
           <>
@@ -360,6 +360,7 @@ export function ProjectsHub() {
                 onOpenProject={(id) => setOpenProjectId(id)}
                 onEditProject={(p) => setProjectForm({ open: true, project: p })}
                 onArchiveProject={handleArchiveProject}
+                onReorderProjects={(orderedIds) => reorderProjects.mutate(orderedIds)}
               />
             ) : (
               <TimelineView
