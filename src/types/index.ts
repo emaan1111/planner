@@ -72,6 +72,7 @@ export interface Task {
   archived?: boolean;
   startDate?: Date;
   dueDate?: Date;
+  category?: string;
   linkedPlanType?: PlanType;
   linkedEventId?: string;
   projectId?: string;

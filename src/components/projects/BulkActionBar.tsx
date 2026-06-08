@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Archive, Trash2, MoonStar, X, FolderInput, Flag, CircleDot } from 'lucide-react';
+import { Archive, Trash2, MoonStar, X, FolderInput, Flag, CircleDot, Copy } from 'lucide-react';
 import { Project, TaskStatus, TaskPriority } from '@/types';
 import { STATUS_ORDER, STATUS_META, PRIORITY_ORDER, PRIORITY_META } from '@/lib/pm';
 
@@ -13,6 +13,7 @@ interface BulkActionBarProps {
   onDelete: () => void;
   onSomeday: () => void;
   onSetProject: (projectId: string) => void;
+  onCopyToProject: (projectId: string) => void;
   onSetStatus: (status: TaskStatus) => void;
   onSetPriority: (priority: TaskPriority) => void;
 }
@@ -26,6 +27,7 @@ export function BulkActionBar({
   onDelete,
   onSomeday,
   onSetProject,
+  onCopyToProject,
   onSetStatus,
   onSetPriority,
 }: BulkActionBarProps) {
@@ -50,6 +52,21 @@ export function BulkActionBar({
           className="bg-gray-800 dark:bg-gray-700 text-xs rounded-md px-1.5 py-1 border border-gray-700"
         >
           <option value="">Move to…</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Copy to project */}
+      <div className="relative flex items-center gap-1">
+        <Copy className="w-4 h-4 text-gray-300" />
+        <select
+          value=""
+          onChange={(e) => e.target.value && onCopyToProject(e.target.value)}
+          className="bg-gray-800 dark:bg-gray-700 text-xs rounded-md px-1.5 py-1 border border-gray-700"
+        >
+          <option value="">Copy to…</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}

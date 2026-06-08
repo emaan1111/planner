@@ -78,6 +78,8 @@ export type TaskBulkAction =
   | 'setPriority'
   | 'setProject'
   | 'setBucket'
+  | 'setCategory'
+  | 'copy'
   | 'delete';
 
 export interface TaskBulkPayload {
@@ -101,6 +103,8 @@ function applyBulkToTasks(tasks: Task[], { ids, action, value }: TaskBulkPayload
   if (action === 'delete') {
     return tasks.filter((t) => !idSet.has(t.id));
   }
+  // copy creates new rows server-side; no optimistic change, refetch fills them in.
+  if (action === 'copy') return tasks;
   return tasks.map((t) => {
     if (!idSet.has(t.id)) return t;
     switch (action) {
@@ -116,6 +120,8 @@ function applyBulkToTasks(tasks: Task[], { ids, action, value }: TaskBulkPayload
         return { ...t, projectId: value || undefined, updatedAt: new Date() };
       case 'setBucket':
         return { ...t, bucket: (value as Task['bucket']) ?? t.bucket, updatedAt: new Date() };
+      case 'setCategory':
+        return { ...t, category: value || undefined, updatedAt: new Date() };
       default:
         return t;
     }

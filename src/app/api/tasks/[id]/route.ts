@@ -46,6 +46,7 @@ export async function PUT(
     if ('archived' in body) data.archived = body.archived;
     if ('startDate' in body) data.startDate = body.startDate ? new Date(body.startDate) : null;
     if ('dueDate' in body) data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    if ('category' in body) data.category = body.category || null;
     if ('linkedPlanType' in body) data.linkedPlanType = body.linkedPlanType || null;
     if ('linkedEventId' in body) data.linkedEventId = body.linkedEventId || null;
     if ('projectId' in body) data.projectId = body.projectId || null;

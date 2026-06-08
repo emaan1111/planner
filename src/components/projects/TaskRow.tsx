@@ -5,8 +5,9 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Clock, Archive } from 'lucide-react';
 import { Task, EventColor, colorClasses } from '@/types';
-import { BOARD_GRID } from '@/lib/pm';
+import { BOARD_GRID, DETAIL_GRID } from '@/lib/pm';
 import { StatusPill, PriorityPill } from './Pills';
+import { CategoryPill } from './CategoryPill';
 
 export interface TaskRowProps {
   task: Task;
@@ -17,6 +18,8 @@ export interface TaskRowProps {
   onUpdate: (id: string, updates: Partial<Task>) => void;
   onArchive: (id: string) => void;
   isDragOverlay?: boolean;
+  /** When provided, render an editable Category column with these suggestions. */
+  categories?: string[];
 }
 
 export function TaskRow({
@@ -28,12 +31,14 @@ export function TaskRow({
   onUpdate,
   onArchive,
   isDragOverlay,
+  categories,
 }: TaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { task },
   });
-  const style = { transform: CSS.Transform.toString(transform), transition, gridTemplateColumns: BOARD_GRID };
+  const withCategory = categories !== undefined;
+  const style = { transform: CSS.Transform.toString(transform), transition, gridTemplateColumns: withCategory ? DETAIL_GRID : BOARD_GRID };
   const accent = accentColor ? colorClasses[accentColor] : null;
 
   return (
@@ -77,6 +82,13 @@ export function TaskRow({
       >
         {task.title}
       </button>
+
+      {/* category */}
+      {withCategory && (
+        <div className="flex justify-center min-w-0">
+          <CategoryPill value={task.category} categories={categories!} onChange={(c) => onUpdate(task.id, { category: c })} />
+        </div>
+      )}
 
       {/* status */}
       <div className="flex justify-center">

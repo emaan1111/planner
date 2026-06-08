@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
         archived: body.archived ?? false,
         startDate: body.startDate ? new Date(body.startDate) : null,
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
+        category: body.category || null,
         linkedPlanType: body.linkedPlanType || null,
         linkedEventId: body.linkedEventId,
         projectId: body.projectId || null,

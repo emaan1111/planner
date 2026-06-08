@@ -148,6 +148,26 @@ export function ProjectsHub() {
   }, []);
   const clearSelection = useCallback(() => setSelectedTaskIds(new Set()), []);
 
+  // Ids selectable from the board (everything currently rendered there).
+  const boardSelectableIds = useMemo(() => {
+    const ids: string[] = [];
+    visibleProjects.forEach((p) => (tasksByProject.get(p.id) ?? []).forEach((t) => ids.push(t.id)));
+    noProjectTasks.forEach((t) => ids.push(t.id));
+    if (scope !== 'week') somedayTasks.forEach((t) => ids.push(t.id));
+    return ids;
+  }, [visibleProjects, tasksByProject, noProjectTasks, somedayTasks, scope]);
+  const allBoardSelected = boardSelectableIds.length > 0 && boardSelectableIds.every((id) => selectedTaskIds.has(id));
+  const toggleSelectAllBoard = useCallback(() => {
+    setSelectedTaskIds((prev) => {
+      if (boardSelectableIds.every((id) => prev.has(id))) {
+        const next = new Set(prev);
+        boardSelectableIds.forEach((id) => next.delete(id));
+        return next;
+      }
+      return new Set([...prev, ...boardSelectableIds]);
+    });
+  }, [boardSelectableIds]);
+
   // ---- Task handlers ----
   const handleAddTask = useCallback((projectId: string | undefined, title: string, overrides?: Partial<Task>) => {
     createTask.mutate({ title, status: 'todo', priority: 'medium', bucket: 'active', projectId, ...overrides });
@@ -196,6 +216,11 @@ export function ProjectsHub() {
   const handleArchiveProject = useCallback((id: string) => {
     updateProject.mutate({ id, updates: { archived: true } });
   }, [updateProject]);
+
+  const allCategories = useMemo(
+    () => [...new Set(tasks.map((t) => t.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b)),
+    [tasks]
+  );
 
   const inboxCount = inboxTasks.length;
 
@@ -303,6 +328,7 @@ export function ProjectsHub() {
             onArchiveTask={handleArchiveTask}
             onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
             onAddTask={(title, overrides) => handleAddTask(openProject.id, title, overrides)}
+            categories={allCategories}
           />
         ) : (
           <>
@@ -331,6 +357,23 @@ export function ProjectsHub() {
                 </button>
               </div>
             ) : viewMode === 'board' ? (
+              <>
+              <div className="flex items-center gap-3 px-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allBoardSelected}
+                    onChange={toggleSelectAllBoard}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                    {allBoardSelected ? 'Deselect all' : 'Select all'}
+                  </span>
+                </label>
+                {selectedTaskIds.size > 0 && (
+                  <span className="text-xs text-gray-400">{selectedTaskIds.size} selected</span>
+                )}
+              </div>
               <ProjectBoard
                 projects={visibleProjects}
                 tasksByProject={tasksByProject}
@@ -350,6 +393,7 @@ export function ProjectsHub() {
                 onReorderProjects={(orderedIds) => reorderProjects.mutate(orderedIds)}
                 onReviveTask={handleRevive}
               />
+              </>
             ) : viewMode === 'kanban' ? (
               <KanbanView tasks={boardTasks} projects={activeProjects} onUpdateTask={handleUpdateTask} onEditTask={setEditingTask} />
             ) : viewMode === 'cards' ? (
@@ -387,6 +431,7 @@ export function ProjectsHub() {
             onDelete={() => runBulk('delete')}
             onSomeday={() => runBulk('setBucket', 'someday')}
             onSetProject={(projectId) => runBulk('setProject', projectId)}
+            onCopyToProject={(projectId) => runBulk('copy', projectId)}
             onSetStatus={(status) => runBulk('setStatus', status)}
             onSetPriority={(priority) => runBulk('setPriority', priority)}
           />

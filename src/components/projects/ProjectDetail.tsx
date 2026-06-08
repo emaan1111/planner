@@ -20,8 +20,9 @@ import { projectProgress, openCount, STATUS_ORDER, STATUS_META, PRIORITY_ORDER, 
 import { TaskRow } from './TaskRow';
 import { QuickAddRow } from './QuickAddRow';
 import { ColumnHeaderRow, StatusSummaryBar } from './boardShared';
+import { categoryDot } from './CategoryPill';
 
-type GroupBy = 'none' | 'status' | 'priority' | 'due';
+type GroupBy = 'none' | 'status' | 'priority' | 'due' | 'category';
 
 interface ProjectDetailProps {
   project: Project;
@@ -36,6 +37,7 @@ interface ProjectDetailProps {
   onArchiveTask: (id: string) => void;
   onReorderTasks: (orderedIds: string[]) => void;
   onAddTask: (title: string, overrides?: Partial<Task>) => void;
+  categories: string[];
 }
 
 interface Group {
@@ -48,6 +50,7 @@ interface Group {
 
 const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'none', label: 'None' },
+  { id: 'category', label: 'Category' },
   { id: 'status', label: 'Status' },
   { id: 'priority', label: 'Priority' },
   { id: 'due', label: 'Due date' },
@@ -80,6 +83,19 @@ function buildGroups(tasks: Task[], groupBy: GroupBy): Group[] {
       tasks: tasks.filter((t) => t.status === s),
     })).filter((g) => g.tasks.length > 0);
   }
+  if (groupBy === 'category') {
+    const names = [...new Set(tasks.map((t) => t.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b));
+    const groups: Group[] = names.map((c) => ({
+      id: c,
+      label: c,
+      dot: categoryDot(c),
+      override: { category: c },
+      tasks: tasks.filter((t) => t.category === c),
+    }));
+    const uncategorized = tasks.filter((t) => !t.category);
+    if (uncategorized.length) groups.push({ id: '__uncat__', label: 'Uncategorized', dot: 'bg-gray-300', override: { category: undefined }, tasks: uncategorized });
+    return groups;
+  }
   if (groupBy === 'priority') {
     return PRIORITY_ORDER.map((p) => ({
       id: p,
@@ -105,6 +121,7 @@ function buildGroups(tasks: Task[], groupBy: GroupBy): Group[] {
 function TaskTable({
   tasks,
   accentColor,
+  categories,
   selectedTaskIds,
   onToggleSelect,
   onEditTask,
@@ -115,6 +132,7 @@ function TaskTable({
 }: {
   tasks: Task[];
   accentColor: EventColor;
+  categories: string[];
   selectedTaskIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onEditTask: (task: Task) => void;
@@ -138,7 +156,7 @@ function TaskTable({
 
   return (
     <>
-      {tasks.length > 0 && <ColumnHeaderRow />}
+      {tasks.length > 0 && <ColumnHeaderRow withCategory />}
       {tasks.length === 0 ? (
         <div className="px-8 py-4 text-sm text-gray-400">No tasks here yet.</div>
       ) : (
@@ -149,6 +167,7 @@ function TaskTable({
                 key={task.id}
                 task={task}
                 accentColor={accentColor}
+                categories={categories}
                 selected={selectedTaskIds.has(task.id)}
                 onToggleSelect={onToggleSelect}
                 onEdit={onEditTask}
@@ -158,7 +177,7 @@ function TaskTable({
             ))}
           </SortableContext>
           <DragOverlay>
-            {activeTask ? <TaskRow task={activeTask} accentColor={accentColor} selected={false} onToggleSelect={() => {}} onEdit={() => {}} onUpdate={() => {}} onArchive={() => {}} isDragOverlay /> : null}
+            {activeTask ? <TaskRow task={activeTask} accentColor={accentColor} categories={categories} selected={false} onToggleSelect={() => {}} onEdit={() => {}} onUpdate={() => {}} onArchive={() => {}} isDragOverlay /> : null}
           </DragOverlay>
         </DndContext>
       )}
@@ -185,14 +204,22 @@ export function ProjectDetail({
   onArchiveTask,
   onReorderTasks,
   onAddTask,
+  categories,
 }: ProjectDetailProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const accent = colorClasses[project.color] ?? colorClasses.blue;
   const progress = projectProgress(tasks);
   const groups = useMemo(() => (groupBy === 'none' ? null : buildGroups(tasks, groupBy)), [tasks, groupBy]);
 
+  // Categories already used in this project, surfaced as suggestions in the pills.
+  const localCategories = useMemo(
+    () => [...new Set([...categories, ...tasks.map((t) => t.category).filter((c): c is string => !!c)])].sort((a, b) => a.localeCompare(b)),
+    [categories, tasks]
+  );
+
   const tableProps = {
     accentColor: project.color,
+    categories: localCategories,
     selectedTaskIds,
     onToggleSelect,
     onEditTask,

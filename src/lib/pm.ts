@@ -107,6 +107,8 @@ export function openCount(tasks: Task[]): number {
 
 /** Shared CSS grid columns so the Main-Table header and task rows line up. */
 export const BOARD_GRID = '26px 22px minmax(0,1fr) 136px 92px 96px 30px';
+/** Same, plus a Category column (used inside a project's detail table). */
+export const DETAIL_GRID = '26px 22px minmax(0,1fr) 120px 136px 92px 96px 30px';
 
 /** Count of tasks per status (only statuses that appear), for the summary strip. */
 export function statusCounts(tasks: Task[]): { status: TaskStatus; count: number }[] {

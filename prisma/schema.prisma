@@ -50,6 +50,7 @@ model Task {
   archived       Boolean  @default(false)
   startDate      DateTime?
   dueDate        DateTime?
+  category       String?
   linkedPlanType String?
   linkedEventId  String?
   projectId      String?
