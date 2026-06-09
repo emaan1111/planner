@@ -22,11 +22,13 @@ import { DocBlock, DocSlide } from '@/types/docs';
 import { getSlides, reorderSlides, setSlideTitle, replaceSlideBody, ungroupSlide } from '@/lib/docModel';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
 
+type SlideLayout = 'list' | 'grid';
+
 interface Props {
   blocks: DocBlock[];
   onChangeBlocks: (blocks: DocBlock[]) => void;
-  layout: 'list' | 'grid';
-  onLayoutChange: (layout: 'list' | 'grid') => void;
+  layout: SlideLayout;
+  onLayoutChange: (layout: SlideLayout) => void;
 }
 
 export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange }: Props) {
@@ -48,34 +50,37 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange }: Pr
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-400">Drag the handle to reorder slides — the document text moves with them.</p>
+        <p className="text-sm text-gray-400">Drag to reorder slides — the document text moves with them.</p>
         <div className="flex items-center gap-1 p-0.5 rounded-lg bg-gray-100 dark:bg-gray-800">
           <button
             onClick={() => onLayoutChange('list')}
-            className={clsx('p-1.5 rounded-md transition-colors', layout === 'list' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-400')}
-            title="List"
+            className={clsx('flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm transition-colors', layout === 'list' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-400')}
+            title="List style"
           >
             <Rows3 className="w-4 h-4" />
+            List
           </button>
           <button
             onClick={() => onLayoutChange('grid')}
-            className={clsx('p-1.5 rounded-md transition-colors', layout === 'grid' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-400')}
-            title="Grid"
+            className={clsx('flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm transition-colors', layout === 'grid' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-400')}
+            title="Grid style"
           >
             <LayoutGrid className="w-4 h-4" />
+            Grid
           </button>
         </div>
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={slides.map((s) => s.id)} strategy={layout === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}>
-          <div className={clsx(layout === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-3')}>
+          <div className={clsx(layout === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3')}>
             {slides.map((slide, index) => (
               <SlideCard
                 key={slide.id}
                 slide={slide}
                 index={index}
                 body={bodyOf(slide)}
+                layout={layout}
                 canDelete={index !== 0}
                 onTitle={(t) => onChangeBlocks(setSlideTitle(blocks, slide.id, t))}
                 onBody={(t) => onChangeBlocks(replaceSlideBody(blocks, slide.id, t))}
@@ -89,30 +94,41 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange }: Pr
   );
 }
 
-function SlideCard({
-  slide,
-  index,
-  body,
-  canDelete,
-  onTitle,
-  onBody,
-  onUnmerge,
-}: {
+interface CardProps {
   slide: DocSlide;
   index: number;
   body: string;
+  layout: SlideLayout;
   canDelete: boolean;
   onTitle: (t: string) => void;
   onBody: (t: string) => void;
   onUnmerge: () => void;
-}) {
+}
+
+function SlideCard(props: CardProps) {
+  const { slide, layout } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  const dragHandle = { attributes, listeners };
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  return layout === 'grid' ? (
+    <GridSlide {...props} setNodeRef={setNodeRef} style={style} isDragging={isDragging} dragHandle={dragHandle} />
+  ) : (
+    <ListSlide {...props} setNodeRef={setNodeRef} style={style} isDragging={isDragging} dragHandle={dragHandle} />
+  );
+}
 
+type SortableState = ReturnType<typeof useSortable>;
+
+type InnerProps = CardProps & {
+  setNodeRef: SortableState['setNodeRef'];
+  style: React.CSSProperties;
+  isDragging: boolean;
+  dragHandle: Pick<SortableState, 'attributes' | 'listeners'>;
+};
+
+// "List" style — full-width editable card, content auto-grows. (The original look.)
+function ListSlide({ slide, index, body, canDelete, onTitle, onBody, onUnmerge, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
   return (
     <div
       ref={setNodeRef}
@@ -124,8 +140,8 @@ function SlideCard({
     >
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-800">
         <button
-          {...attributes}
-          {...listeners}
+          {...dragHandle.attributes}
+          {...dragHandle.listeners}
           className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none"
           title="Drag to reorder"
         >
@@ -156,6 +172,62 @@ function SlideCard({
           onChange={(e) => onBody(e.target.value)}
           placeholder="Slide content…"
           className="w-full resize-none bg-transparent text-sm leading-relaxed text-gray-700 dark:text-gray-300 outline-none placeholder:text-gray-400"
+        />
+      </div>
+    </div>
+  );
+}
+
+// "Grid" style — a 16:9 slide thumbnail, like a presentation sorter view.
+function GridSlide({ slide, index, body, canDelete, onTitle, onBody, onUnmerge, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={clsx(
+        'group relative aspect-video flex flex-col rounded-lg border bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden',
+        isDragging ? 'opacity-50 ring-2 ring-indigo-400' : 'hover:shadow-md transition-shadow'
+      )}
+    >
+      {/* Top bar: slide number + drag handle + delete (appears on hover) */}
+      <div className="flex items-center gap-1.5 px-2.5 pt-2">
+        <button
+          {...dragHandle.attributes}
+          {...dragHandle.listeners}
+          className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none"
+          title="Drag to reorder"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500">
+          {index + 1}
+        </span>
+        <div className="ml-auto">
+          {canDelete && (
+            <button
+              onClick={onUnmerge}
+              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+              title="Merge into the previous slide"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Slide surface: big headline, body fills the rest */}
+      <div className="flex-1 flex flex-col px-3 pb-3 pt-1 min-h-0">
+        <input
+          value={slide.title}
+          onChange={(e) => onTitle(e.target.value)}
+          placeholder="Headline…"
+          className="w-full bg-transparent font-bold text-gray-900 dark:text-gray-100 text-base sm:text-lg leading-tight outline-none placeholder:text-gray-300 dark:placeholder:text-gray-600 shrink-0"
+        />
+        <textarea
+          value={body}
+          onChange={(e) => onBody(e.target.value)}
+          placeholder="Slide content…"
+          className="flex-1 mt-1.5 w-full resize-none bg-transparent text-xs leading-relaxed text-gray-600 dark:text-gray-400 outline-none placeholder:text-gray-400 overflow-auto min-h-0"
         />
       </div>
     </div>

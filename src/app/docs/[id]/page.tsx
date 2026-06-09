@@ -85,10 +85,14 @@ function Editor({ doc }: { doc: Doc }) {
 
   const slideCount = useMemo(() => getSlides(blocks).length, [blocks]);
 
+  // The grid slide-sorter wants room to breathe; everything else stays in a
+  // comfortable reading column.
+  const containerWidth = view === 'slides' && slideLayout === 'grid' ? 'max-w-5xl' : 'max-w-3xl';
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div className={clsx('mx-auto px-4 py-3 flex items-center gap-3 transition-[max-width]', containerWidth)}>
           <Link
             href="/docs"
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors shrink-0"
@@ -131,7 +135,7 @@ function Editor({ doc }: { doc: Doc }) {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8">
+      <main className={clsx('mx-auto px-4 py-8 transition-[max-width]', containerWidth)}>
         {view === 'document' ? (
           <DocumentView blocks={blocks} onChangeBlocks={handleBlocks} />
         ) : (
