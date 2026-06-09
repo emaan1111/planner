@@ -16,7 +16,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, LayoutGrid, Rows3 } from 'lucide-react';
+import { GripVertical, Trash2, LayoutGrid, Rows3, Minus, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import { DocBlock, DocSlide } from '@/types/docs';
 import { getSlides, reorderSlides, setSlideTitle, replaceSlideBody, ungroupSlide } from '@/lib/docModel';
@@ -24,14 +24,20 @@ import { AutoGrowTextarea } from './AutoGrowTextarea';
 
 type SlideLayout = 'list' | 'grid';
 
+// How many slides can sit in one row of the grid. Fewer columns = zoomed in.
+const MIN_COLS = 1;
+const MAX_COLS = 8;
+
 interface Props {
   blocks: DocBlock[];
   onChangeBlocks: (blocks: DocBlock[]) => void;
   layout: SlideLayout;
   onLayoutChange: (layout: SlideLayout) => void;
+  cols: number;
+  onColsChange: (cols: number) => void;
 }
 
-export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange }: Props) {
+export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols, onColsChange }: Props) {
   const slides = useMemo(() => getSlides(blocks), [blocks]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -47,10 +53,16 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange }: Pr
   const bodyOf = (slide: DocSlide) =>
     slide.blockIds.map((id) => blocks.find((b) => b.id === id)?.text ?? '').join('\n');
 
+  const clampedCols = Math.min(MAX_COLS, Math.max(MIN_COLS, cols));
+  const zoomIn = () => onColsChange(Math.max(MIN_COLS, clampedCols - 1));
+  const zoomOut = () => onColsChange(Math.min(MAX_COLS, clampedCols + 1));
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-400">Drag to reorder slides — the document text moves with them.</p>
+        <p className="text-sm text-gray-400">
+          {layout === 'grid' ? `${clampedCols} per row — drag to reorder, zoom with the control below.` : 'Drag to reorder slides — the document text moves with them.'}
+        </p>
         <div className="flex items-center gap-1 p-0.5 rounded-lg bg-gray-100 dark:bg-gray-800">
           <button
             onClick={() => onLayoutChange('list')}
@@ -73,7 +85,10 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange }: Pr
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={slides.map((s) => s.id)} strategy={layout === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}>
-          <div className={clsx(layout === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3')}>
+          <div
+            className={clsx(layout === 'grid' ? 'grid gap-4' : 'space-y-3')}
+            style={layout === 'grid' ? { gridTemplateColumns: `repeat(${clampedCols}, minmax(0, 1fr))` } : undefined}
+          >
             {slides.map((slide, index) => (
               <SlideCard
                 key={slide.id}
@@ -90,6 +105,31 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange }: Pr
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Floating zoom control — fewer columns = zoomed in, more = zoomed out */}
+      {layout === 'grid' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 px-2 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
+          <button
+            onClick={zoomOut}
+            disabled={clampedCols >= MAX_COLS}
+            className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            title="Zoom out (more slides per row)"
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300 w-14 text-center tabular-nums select-none">
+            {clampedCols} / row
+          </span>
+          <button
+            onClick={zoomIn}
+            disabled={clampedCols <= MIN_COLS}
+            className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            title="Zoom in (fewer slides per row)"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

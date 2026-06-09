@@ -47,6 +47,7 @@ function Editor({ doc }: { doc: Doc }) {
   const [blocks, setBlocks] = useState<DocBlock[]>(() => ensureNotEmpty(doc.blocks));
   const [view, setView] = useState<ViewMode>('document');
   const [slideLayout, setSlideLayout] = useState<'list' | 'grid'>('list');
+  const [gridCols, setGridCols] = useState(4);
   const [saveState, setSaveState] = useState<SaveState>('idle');
 
   const id = doc.id;
@@ -85,9 +86,10 @@ function Editor({ doc }: { doc: Doc }) {
 
   const slideCount = useMemo(() => getSlides(blocks).length, [blocks]);
 
-  // The grid slide-sorter wants room to breathe; everything else stays in a
-  // comfortable reading column.
-  const containerWidth = view === 'slides' && slideLayout === 'grid' ? 'max-w-5xl' : 'max-w-3xl';
+  // The grid slide-sorter uses the full screen width (like a presentation
+  // sorter); everything else stays in a comfortable reading column.
+  const gridMode = view === 'slides' && slideLayout === 'grid';
+  const containerWidth = gridMode ? 'max-w-none' : 'max-w-3xl';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -139,7 +141,14 @@ function Editor({ doc }: { doc: Doc }) {
         {view === 'document' ? (
           <DocumentView blocks={blocks} onChangeBlocks={handleBlocks} />
         ) : (
-          <SlideView blocks={blocks} onChangeBlocks={handleBlocks} layout={slideLayout} onLayoutChange={setSlideLayout} />
+          <SlideView
+            blocks={blocks}
+            onChangeBlocks={handleBlocks}
+            layout={slideLayout}
+            onLayoutChange={setSlideLayout}
+            cols={gridCols}
+            onColsChange={setGridCols}
+          />
         )}
       </main>
 
