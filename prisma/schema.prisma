@@ -340,3 +340,23 @@ model Doc {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ----------------------------------------------------------------------------
+// Video Studio: Descript-style transcript-driven video editor. The whole media
+// pipeline (audio extraction, Whisper transcription, export) runs client-side
+// in the browser; the raw video blob lives in the browser's IndexedDB. Only the
+// transcript + edit decisions are persisted here. `words` is the source of
+// truth: each word carries a `deleted` flag, and deleted words form the cut
+// list (EDL) the player skips and the exporter trims out.
+// ----------------------------------------------------------------------------
+model VideoProject {
+  id          String   @id @default(cuid())
+  title       String   @default("Untitled video")
+  status      String   @default("draft") // draft | transcribing | ready
+  durationSec Float    @default(0)
+  fileName    String?  // original upload name, for re-attaching the blob
+  words       Json     @default("[]") // Word[]: { id, text, start, end, deleted? }
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
