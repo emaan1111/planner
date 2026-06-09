@@ -325,3 +325,18 @@ model CoursePlacement {
   @@index([scenarioId])
   @@index([courseTemplateId])
 }
+
+// ----------------------------------------------------------------------------
+// Documents: word-doc style editor with a dual text / slide view. The body is
+// stored as an ordered list of blocks (paragraphs); slide boundaries and slide
+// titles live on the blocks themselves, so the document and the slides are a
+// single source of truth (reordering slides physically moves their blocks).
+// ----------------------------------------------------------------------------
+model Doc {
+  id        String   @id @default(cuid())
+  title     String   @default("Untitled document")
+  blocks    Json     @default("[]") // DocBlock[]: { id, text, slideStart?, slideTitle? }
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -7,7 +7,7 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/u
 import { useDecisions, useCreateDecision, useUpdateDecision, useDeleteDecision } from '@/hooks/useDecisionsQuery';
 import { usePlanTypes, useCreatePlanType, useDeletePlanType } from '@/hooks/usePlanTypesQuery';
 import { PlanType, colorClasses, EventColor, Task, KeyDecision } from '@/types';
-import { Plus, Filter, ChevronDown, Star, Trash2, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List, GripVertical, Edit2, LayoutGrid } from 'lucide-react';
+import { Plus, Filter, ChevronDown, Star, Trash2, Lightbulb, CheckSquare, Check, Circle, ExternalLink, List, GripVertical, Edit2, LayoutGrid, FileText } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -209,6 +209,15 @@ export function Sidebar() {
                 {tasks.filter((t) => t.bucket === 'inbox' && !t.archived).length}
               </span>
             )}
+          </Link>
+
+          {/* Documents Link */}
+          <Link
+            href="/docs"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors mt-1 font-medium"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Documents</span>
           </Link>
 
           {/* CFO Scenarios Link */}
