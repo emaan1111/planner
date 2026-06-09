@@ -48,6 +48,7 @@ function Editor({ doc }: { doc: Doc }) {
   const [view, setView] = useState<ViewMode>('document');
   const [slideLayout, setSlideLayout] = useState<'list' | 'grid'>('list');
   const [gridCols, setGridCols] = useState(4);
+  const [showSlideBody, setShowSlideBody] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>('idle');
 
   const id = doc.id;
@@ -148,6 +149,8 @@ function Editor({ doc }: { doc: Doc }) {
             onLayoutChange={setSlideLayout}
             cols={gridCols}
             onColsChange={setGridCols}
+            showBody={showSlideBody}
+            onShowBodyChange={setShowSlideBody}
           />
         )}
       </main>

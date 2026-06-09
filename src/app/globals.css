@@ -302,6 +302,18 @@ body {
   }
 }
 
+/* Rich-text document blocks (contentEditable paragraphs) */
+.doc-rich-block {
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.doc-rich-block:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   *,

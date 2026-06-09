@@ -38,6 +38,7 @@ export function getSlides(blocks: DocBlock[]): DocSlide[] {
       slides.push({
         id: block.id,
         title: block.slideTitle ?? '',
+        color: block.slideColor ?? '',
         blockIds: [block.id],
         startIndex: index,
         endIndex: index,
@@ -81,7 +82,7 @@ export function removeBlock(blocks: DocBlock[], id: string): DocBlock[] {
     // Promote the following block to keep the slide boundary, but only if it
     // wasn't already the start of its own slide.
     const inheritor = next[index];
-    next[index] = { ...inheritor, slideStart: index === 0 ? inheritor.slideStart : true, slideTitle: removed.slideTitle };
+    next[index] = { ...inheritor, slideStart: index === 0 ? inheritor.slideStart : true, slideTitle: removed.slideTitle, slideColor: removed.slideColor };
   }
   return ensureNotEmpty(next);
 }
@@ -118,7 +119,7 @@ export function groupIntoSlide(blocks: DocBlock[], selectedIds: string[], title:
     }
     if (i > first && i <= last) {
       // Interior blocks must not carry their own boundary.
-      return { ...b, slideStart: false, slideTitle: undefined };
+      return { ...b, slideStart: false, slideTitle: undefined, slideColor: undefined };
     }
     if (i === last + 1 && !b.slideStart) {
       // Close the selection by starting a fresh (untitled) slide right after it.
@@ -140,11 +141,28 @@ export function startSlideAt(blocks: DocBlock[], id: string, title = ''): DocBlo
 export function ungroupSlide(blocks: DocBlock[], slideStartId: string): DocBlock[] {
   const index = blocks.findIndex((b) => b.id === slideStartId);
   if (index <= 0) return blocks;
-  return blocks.map((b) => (b.id === slideStartId ? { ...b, slideStart: false, slideTitle: undefined } : b));
+  return blocks.map((b) => (b.id === slideStartId ? { ...b, slideStart: false, slideTitle: undefined, slideColor: undefined } : b));
 }
 
 export function setSlideTitle(blocks: DocBlock[], slideStartId: string, title: string): DocBlock[] {
   return blocks.map((b) => (b.id === slideStartId ? { ...b, slideTitle: title } : b));
+}
+
+// Insert a fresh empty slide immediately after the given slide. Returns the new
+// opening block's id. If slideStartId isn't found, appends at the end.
+export function insertSlideAfter(blocks: DocBlock[], slideStartId: string): { blocks: DocBlock[]; newId: string } {
+  const slides = getSlides(blocks);
+  const slide = slides.find((s) => s.id === slideStartId);
+  const at = slide ? slide.endIndex + 1 : blocks.length;
+  const opener: DocBlock = { ...newBlock(''), slideStart: true, slideTitle: '' };
+  const next = blocks.slice();
+  next.splice(at, 0, opener);
+  return { blocks: next, newId: opener.id };
+}
+
+// Set (or clear, with '') the whole-slide background tint on the opening block.
+export function setSlideColor(blocks: DocBlock[], slideStartId: string, color: string): DocBlock[] {
+  return blocks.map((b) => (b.id === slideStartId ? { ...b, slideColor: color || undefined } : b));
 }
 
 // Move slide `from` to position `to` (slide indices). The slide's blocks travel
@@ -164,7 +182,7 @@ export function reorderSlides(blocks: DocBlock[], from: number, to: number): Doc
           ? { ...block, slideStart: false }
           : { ...block, slideStart: true };
       }
-      return { ...block, slideStart: false, slideTitle: undefined };
+      return { ...block, slideStart: false, slideTitle: undefined, slideColor: undefined };
     })
   );
 }
@@ -186,7 +204,7 @@ export function replaceSlideBody(blocks: DocBlock[], slideStartId: string, bodyT
   const rebuilt: DocBlock[] = lines.map((text, i) => {
     const id = oldIds[i] ?? uuidv4();
     if (i === 0) {
-      return { id, text, slideStart: opener.slideStart, slideTitle: opener.slideTitle };
+      return { id, text, slideStart: opener.slideStart, slideTitle: opener.slideTitle, slideColor: opener.slideColor };
     }
     return { id, text };
   });
