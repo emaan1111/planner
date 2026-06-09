@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Plus, Tag, X } from 'lucide-react';
+import { AnchoredMenu } from './AnchoredMenu';
 
 // Stable chip color per category name (hashed into a small palette).
 const CATEGORY_COLORS = [
@@ -41,6 +42,7 @@ interface CategoryPillProps {
 export function CategoryPill({ value, categories, onChange }: CategoryPillProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
 
   const addNew = () => {
     const v = draft.trim();
@@ -53,6 +55,7 @@ export function CategoryPill({ value, categories, onChange }: CategoryPillProps)
   return (
     <div className="relative w-full">
       <button
+        ref={anchorRef}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className={clsx(
           'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium max-w-full transition-transform hover:scale-[1.02]',
@@ -62,45 +65,41 @@ export function CategoryPill({ value, categories, onChange }: CategoryPillProps)
         {value ? <span className="truncate">{value}</span> : <><Tag className="w-3 h-3" /> Set</>}
       </button>
 
-      {open && (
-        <>
-          <button className="fixed inset-0 z-30 cursor-default" onClick={() => setOpen(false)} aria-hidden tabIndex={-1} />
-          <div className="absolute z-40 mt-1 left-0 min-w-[180px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-1.5">
-            <div className="max-h-44 overflow-y-auto">
-              {categories.map((c) => (
-                <button
-                  key={c}
-                  onClick={(e) => { e.stopPropagation(); onChange(c); setOpen(false); }}
-                  className="w-full flex items-center px-1.5 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-left"
-                >
-                  <span className={clsx('px-2 py-0.5 rounded-md text-[11px] font-medium', categoryColor(c))}>{c}</span>
-                </button>
-              ))}
-              {value && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onChange(undefined); setOpen(false); }}
-                  className="w-full flex items-center gap-1 px-1.5 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-left text-[11px] text-gray-500"
-                >
-                  <X className="w-3 h-3" /> Clear
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-100 dark:border-gray-800">
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); addNew(); } }}
-                placeholder="New category…"
-                className="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200"
-              />
-              <button onClick={(e) => { e.stopPropagation(); addNew(); }} disabled={!draft.trim()} className="p-1 rounded-md bg-indigo-500 text-white disabled:opacity-40">
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      <AnchoredMenu anchorRef={anchorRef} open={open} onClose={() => setOpen(false)} width={200}>
+        <div className="max-h-44 overflow-y-auto">
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={(e) => { e.stopPropagation(); onChange(c); setOpen(false); }}
+              className="w-full flex items-center px-1.5 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-left"
+            >
+              <span className={clsx('px-2 py-0.5 rounded-md text-[11px] font-medium', categoryColor(c))}>{c}</span>
+            </button>
+          ))}
+          {value && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onChange(undefined); setOpen(false); }}
+              className="w-full flex items-center gap-1 px-1.5 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-left text-[11px] text-gray-500"
+            >
+              <X className="w-3 h-3" /> Clear
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-100 dark:border-gray-800">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); addNew(); } }}
+            placeholder="New category…"
+            autoFocus
+            className="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200"
+          />
+          <button onClick={(e) => { e.stopPropagation(); addNew(); }} disabled={!draft.trim()} className="p-1 rounded-md bg-indigo-500 text-white disabled:opacity-40">
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </AnchoredMenu>
     </div>
   );
 }

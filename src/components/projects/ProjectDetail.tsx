@@ -38,6 +38,7 @@ interface ProjectDetailProps {
   onReorderTasks: (orderedIds: string[]) => void;
   onAddTask: (title: string, overrides?: Partial<Task>) => void;
   categories: string[];
+  onToggleSelectAll: (ids: string[]) => void;
 }
 
 interface Group {
@@ -205,10 +206,12 @@ export function ProjectDetail({
   onReorderTasks,
   onAddTask,
   categories,
+  onToggleSelectAll,
 }: ProjectDetailProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const accent = colorClasses[project.color] ?? colorClasses.blue;
   const progress = projectProgress(tasks);
+  const allSelected = tasks.length > 0 && tasks.every((t) => selectedTaskIds.has(t.id));
   const groups = useMemo(() => (groupBy === 'none' ? null : buildGroups(tasks, groupBy)), [tasks, groupBy]);
 
   // Categories already used in this project, surfaced as suggestions in the pills.
@@ -268,8 +271,19 @@ export function ProjectDetail({
         </div>
       </div>
 
-      {/* Group-by toolbar */}
-      <div className="flex items-center gap-2">
+      {/* Toolbar: select-all + group-by */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={() => onToggleSelectAll(tasks.map((t) => t.id))}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{allSelected ? 'Deselect all' : 'Select all'}</span>
+        </label>
+        {selectedTaskIds.size > 0 && <span className="text-xs text-gray-400">{selectedTaskIds.size} selected</span>}
+        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
         <Layers className="w-4 h-4 text-gray-400" />
         <span className="text-xs text-gray-500 dark:text-gray-400">Group by:</span>
         <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">

@@ -148,6 +148,18 @@ export function ProjectsHub() {
   }, []);
   const clearSelection = useCallback(() => setSelectedTaskIds(new Set()), []);
 
+  // Select (or deselect) a specific set of task ids — used by board + project detail.
+  const toggleSelectAllOf = useCallback((ids: string[]) => {
+    setSelectedTaskIds((prev) => {
+      if (ids.length > 0 && ids.every((id) => prev.has(id))) {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      }
+      return new Set([...prev, ...ids]);
+    });
+  }, []);
+
   // Ids selectable from the board (everything currently rendered there).
   const boardSelectableIds = useMemo(() => {
     const ids: string[] = [];
@@ -329,6 +341,7 @@ export function ProjectsHub() {
             onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
             onAddTask={(title, overrides) => handleAddTask(openProject.id, title, overrides)}
             categories={allCategories}
+            onToggleSelectAll={toggleSelectAllOf}
           />
         ) : (
           <>

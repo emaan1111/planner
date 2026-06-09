@@ -1,35 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { ChevronDown } from 'lucide-react';
 import { Task, TaskStatus, TaskPriority } from '@/types';
 import { STATUS_META, STATUS_ORDER, PRIORITY_META, PRIORITY_ORDER } from '@/lib/pm';
+import { AnchoredMenu } from './AnchoredMenu';
 
 interface DropdownProps {
   className?: string;
-}
-
-// Small inline dropdown shared by the status + priority pills.
-function PillMenu({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  if (!open) return null;
-  return (
-    <>
-      {/* click-away backdrop */}
-      <button className="fixed inset-0 z-30 cursor-default" onClick={onClose} aria-hidden tabIndex={-1} />
-      <div className="absolute z-40 mt-1 left-0 min-w-[150px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-1">
-        {children}
-      </div>
-    </>
-  );
 }
 
 export function StatusPill({
@@ -39,11 +18,13 @@ export function StatusPill({
   fullWidth,
 }: DropdownProps & { status: TaskStatus; onChange: (next: TaskStatus) => void; fullWidth?: boolean }) {
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
   const meta = STATUS_META[status];
 
   return (
     <div className={clsx('relative', fullWidth ? 'w-full' : 'inline-block')}>
       <button
+        ref={anchorRef}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
@@ -58,7 +39,7 @@ export function StatusPill({
         {meta.label}
         <ChevronDown className="w-3 h-3 opacity-70" />
       </button>
-      <PillMenu open={open} onClose={() => setOpen(false)}>
+      <AnchoredMenu anchorRef={anchorRef} open={open} onClose={() => setOpen(false)} width={160}>
         {STATUS_ORDER.map((s) => (
           <button
             key={s}
@@ -73,7 +54,7 @@ export function StatusPill({
             <span className="text-gray-700 dark:text-gray-200">{STATUS_META[s].label}</span>
           </button>
         ))}
-      </PillMenu>
+      </AnchoredMenu>
     </div>
   );
 }
@@ -84,11 +65,13 @@ export function PriorityPill({
   className,
 }: DropdownProps & { priority: TaskPriority; onChange: (next: TaskPriority) => void }) {
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
   const meta = PRIORITY_META[priority];
 
   return (
     <div className="relative inline-block">
       <button
+        ref={anchorRef}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
@@ -101,7 +84,7 @@ export function PriorityPill({
       >
         {meta.label}
       </button>
-      <PillMenu open={open} onClose={() => setOpen(false)}>
+      <AnchoredMenu anchorRef={anchorRef} open={open} onClose={() => setOpen(false)} width={150}>
         {PRIORITY_ORDER.map((p) => (
           <button
             key={p}
@@ -117,7 +100,7 @@ export function PriorityPill({
             </span>
           </button>
         ))}
-      </PillMenu>
+      </AnchoredMenu>
     </div>
   );
 }
