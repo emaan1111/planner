@@ -16,7 +16,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, LayoutGrid, Rows3, Minus, Plus, Type, AlignLeft, Maximize2, PlusSquare } from 'lucide-react';
+import { GripVertical, Trash2, LayoutGrid, Rows3, Minus, Plus, Type, AlignLeft, Maximize2, PlusSquare, Copy, X } from 'lucide-react';
 import clsx from 'clsx';
 import { DocBlock, DocSlide } from '@/types/docs';
 import { getSlides, reorderSlides, setSlideTitle, setSlideColor, ungroupSlide, insertSlideAfter } from '@/lib/docModel';
@@ -24,6 +24,8 @@ import { SlideColorMenu, FormatToolbar } from './DocFormatting';
 import { SlideModal } from './SlideModal';
 import { RichBlock } from './RichBlock';
 import { useBlockEditing } from './useBlockEditing';
+import { htmlToPlainText, copyText } from './richText';
+import { toast } from '@/components/ui/Toast';
 
 type SlideLayout = 'list' | 'grid';
 
@@ -53,9 +55,49 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
   const blockById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [maximized, setMaximized] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [anchor, setAnchor] = useState<string | null>(null);
 
   const { registerEditor, handleInput, handleKeyDown, applyFormat } = useBlockEditing(blocks, onChangeBlocks);
   const editing: SlideEditing = { registerEditor, handleInput, handleKeyDown };
+
+  // Only keep selected ids that still exist.
+  const liveIds = useMemo(() => new Set(slides.map((s) => s.id)), [slides]);
+  const activeSelected = useMemo(() => new Set([...selected].filter((id) => liveIds.has(id))), [selected, liveIds]);
+
+  const toggleSelect = (slideId: string, withShift: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (withShift && anchor) {
+        const ids = slides.map((s) => s.id);
+        const a = ids.indexOf(anchor);
+        const b = ids.indexOf(slideId);
+        if (a !== -1 && b !== -1) {
+          const [lo, hi] = a < b ? [a, b] : [b, a];
+          for (let i = lo; i <= hi; i++) next.add(ids[i]);
+          return next;
+        }
+      }
+      if (next.has(slideId)) next.delete(slideId);
+      else next.add(slideId);
+      return next;
+    });
+    setAnchor(slideId);
+  };
+
+  const slideToText = (slide: DocSlide) => {
+    const body = slide.blockIds.map((id) => htmlToPlainText(blockById.get(id)?.text ?? '')).join('\n');
+    return slide.title ? `${slide.title}\n${body}` : body;
+  };
+
+  const copySelectedSlides = async () => {
+    const chosen = slides.filter((s) => activeSelected.has(s.id)); // keep document order
+    const text = chosen.map(slideToText).join('\n\n').trim();
+    if (await copyText(text)) toast.success(`Copied ${chosen.length} slide${chosen.length === 1 ? '' : 's'}`);
+    else toast.error('Copy failed');
+  };
+
+  const selectAll = () => setSelected(new Set(slides.map((s) => s.id)));
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -73,6 +115,25 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
   return (
     <div>
       <FormatToolbar onCommand={applyFormat} />
+
+      {/* Multi-slide selection actions */}
+      {activeSelected.size > 0 && (
+        <div className="sticky top-2 z-20 flex justify-center mb-3 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3 px-4 py-2 rounded-full bg-gray-900 text-white shadow-lg text-sm">
+            <span>{activeSelected.size} slide{activeSelected.size === 1 ? '' : 's'} selected</span>
+            <button onClick={copySelectedSlides} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500 hover:bg-indigo-400 transition-colors">
+              <Copy className="w-3.5 h-3.5" />
+              Copy
+            </button>
+            <button onClick={selectAll} className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+              Select all
+            </button>
+            <button onClick={() => { setSelected(new Set()); setAnchor(null); }} className="p-1 rounded-full hover:bg-white/10" title="Clear selection">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3 mb-4">
         <p className="text-sm text-gray-400 hidden md:block">
@@ -135,6 +196,8 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
                 layout={layout}
                 showBody={showBody}
                 canDelete={index !== 0}
+                selected={activeSelected.has(slide.id)}
+                onToggleSelect={(shift) => toggleSelect(slide.id, shift)}
                 onTitle={(t) => onChangeBlocks(setSlideTitle(blocks, slide.id, t))}
                 onColor={(c) => onChangeBlocks(setSlideColor(blocks, slide.id, c))}
                 onUnmerge={() => onChangeBlocks(ungroupSlide(blocks, slide.id))}
@@ -203,6 +266,8 @@ interface CardProps {
   layout: SlideLayout;
   showBody: boolean;
   canDelete: boolean;
+  selected: boolean;
+  onToggleSelect: (shift: boolean) => void;
   onTitle: (t: string) => void;
   onColor: (c: string) => void;
   onUnmerge: () => void;
@@ -231,6 +296,22 @@ type InnerProps = CardProps & {
   dragHandle: Pick<SortableState, 'attributes' | 'listeners'>;
 };
 
+// Round checkbox used to select a slide for bulk actions (e.g. copy).
+function SelectDot({ selected, onToggle }: { selected: boolean; onToggle: (shift: boolean) => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(e.shiftKey); }}
+      className={clsx(
+        'w-4 h-4 rounded-full border-2 shrink-0 transition-colors',
+        selected
+          ? 'bg-indigo-500 border-indigo-500'
+          : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 opacity-60 group-hover:opacity-100'
+      )}
+      title="Select slide (shift-click for a range)"
+    />
+  );
+}
+
 // Editable formatted body: every block in the slide as a rich paragraph.
 function SlideBody({ slide, blockById, editing, small }: { slide: DocSlide; blockById: Map<string, DocBlock>; editing: SlideEditing; small?: boolean }) {
   return (
@@ -255,20 +336,22 @@ function SlideBody({ slide, blockById, editing, small }: { slide: DocSlide; bloc
   );
 }
 
-function ListSlide({ slide, index, blockById, editing, showBody, canDelete, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
+function ListSlide({ slide, index, blockById, editing, showBody, canDelete, selected, onToggleSelect, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
   return (
     <div
       ref={setNodeRef}
       style={{ ...style, ...(slide.color ? { backgroundColor: slide.color } : {}) }}
       className={clsx(
         'group rounded-xl border bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 shadow-sm',
-        isDragging && 'opacity-50 ring-2 ring-indigo-400'
+        isDragging && 'opacity-50',
+        selected && 'ring-2 ring-indigo-400'
       )}
     >
       <div className="flex items-center gap-2 px-3 py-2 border-b border-black/5 dark:border-white/5">
         <button {...dragHandle.attributes} {...dragHandle.listeners} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none" title="Drag to reorder">
           <GripVertical className="w-4 h-4" />
         </button>
+        <SelectDot selected={selected} onToggle={onToggleSelect} />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500 shrink-0">Slide {index + 1}</span>
         <input
           value={slide.title}
@@ -300,20 +383,22 @@ function ListSlide({ slide, index, blockById, editing, showBody, canDelete, onTi
   );
 }
 
-function GridSlide({ slide, index, blockById, editing, showBody, canDelete, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
+function GridSlide({ slide, index, blockById, editing, showBody, canDelete, selected, onToggleSelect, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
   return (
     <div
       ref={setNodeRef}
       style={{ ...style, ...(slide.color ? { backgroundColor: slide.color } : {}) }}
       className={clsx(
         'group relative aspect-video flex flex-col rounded-lg border bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden',
-        isDragging ? 'opacity-50 ring-2 ring-indigo-400' : 'hover:shadow-md transition-shadow'
+        isDragging ? 'opacity-50' : 'hover:shadow-md transition-shadow',
+        selected && 'ring-2 ring-indigo-400'
       )}
     >
       <div className="flex items-center gap-1.5 px-2.5 pt-2">
         <button {...dragHandle.attributes} {...dragHandle.listeners} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none" title="Drag to reorder">
           <GripVertical className="w-3.5 h-3.5" />
         </button>
+        <SelectDot selected={selected} onToggle={onToggleSelect} />
         <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500">{index + 1}</span>
         <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
           <button onClick={onMaximize} className="text-gray-400 hover:text-indigo-500 transition-colors" title="Open full slide">
