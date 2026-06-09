@@ -6,7 +6,7 @@ import { updateBlockText, insertBlockAfter, mergeWithPrevious } from '@/lib/docM
 import { caretAtStart, setCaret, normalizeHtml } from './richText';
 
 type PendingFocus = { id: string; caret: number | 'start' | 'end' } | null;
-export type FormatCommand = 'bold' | 'underline' | 'foreColor' | 'hiliteColor' | 'removeFormat';
+export type FormatCommand = 'bold' | 'underline' | 'strikeThrough' | 'foreColor' | 'hiliteColor' | 'removeFormat';
 
 // Shared editing behaviour for the contentEditable rich blocks: caret/focus
 // management across structural changes, Enter to split, Backspace to merge, and

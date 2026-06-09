@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Bold, Underline, Baseline, Highlighter, Paintbrush, ChevronDown, Check, Copy } from 'lucide-react';
+import { Bold, Underline, Strikethrough, Baseline, Highlighter, Paintbrush, ChevronDown, Check, Copy } from 'lucide-react';
 import { TEXT_COLORS, HIGHLIGHT_COLORS, SLIDE_COLORS, Swatch } from './richText';
 
 // ---------------------------------------------------------------------------
@@ -11,7 +11,7 @@ import { TEXT_COLORS, HIGHLIGHT_COLORS, SLIDE_COLORS, Swatch } from './richText'
 // ---------------------------------------------------------------------------
 
 interface FormatToolbarProps {
-  onCommand: (cmd: 'bold' | 'underline' | 'foreColor' | 'hiliteColor' | 'removeFormat', value?: string) => void;
+  onCommand: (cmd: 'bold' | 'underline' | 'strikeThrough' | 'foreColor' | 'hiliteColor' | 'removeFormat', value?: string) => void;
   variant?: 'sticky' | 'bar' | 'inline';
   onCopyAll?: () => void;
 }
@@ -33,6 +33,9 @@ export function FormatToolbar({ onCommand, variant = 'sticky', onCopyAll }: Form
       </ToolbarButton>
       <ToolbarButton label="Underline" onMouseDown={keep} onClick={() => onCommand('underline')}>
         <Underline className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton label="Strikethrough" onMouseDown={keep} onClick={() => onCommand('strikeThrough')}>
+        <Strikethrough className="w-4 h-4" />
       </ToolbarButton>
 
       <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
