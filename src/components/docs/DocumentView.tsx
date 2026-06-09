@@ -1,14 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { Plus, Scissors, X, Layers, ChevronRight } from 'lucide-react';
-import { DocBlock } from '@/types/docs';
+import { Plus, Scissors, X, Layers, ChevronRight, Copy } from 'lucide-react';
+import { DocBlock, DocSlide } from '@/types/docs';
 import {
   getSlides,
-  updateBlockText,
   insertBlockAfter,
-  mergeWithPrevious,
   groupIntoSlide,
   startSlideAt,
   ungroupSlide,
@@ -17,85 +15,30 @@ import {
 } from '@/lib/docModel';
 import { RichBlock } from './RichBlock';
 import { FormatToolbar, SlideColorMenu } from './DocFormatting';
-import { caretAtStart, setCaret, normalizeHtml } from './richText';
+import { useBlockEditing } from './useBlockEditing';
+import { htmlToPlainText, copyText } from './richText';
+import { toast } from '@/components/ui/Toast';
 
 interface Props {
   blocks: DocBlock[];
   onChangeBlocks: (blocks: DocBlock[]) => void;
 }
 
-type PendingFocus = { id: string; caret: number | 'start' | 'end' } | null;
-
 export function DocumentView({ blocks, onChangeBlocks }: Props) {
   const slides = useMemo(() => getSlides(blocks), [blocks]);
   const indexOf = useMemo(() => new Map(blocks.map((b, i) => [b.id, i])), [blocks]);
   const blockById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks]);
 
+  const { registerEditor, handleInput, handleKeyDown, applyFormat, pendingFocusRef } = useBlockEditing(blocks, onChangeBlocks);
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
-  const pendingFocus = useRef<PendingFocus>(null);
-  const editors = useRef<Map<string, HTMLDivElement>>(new Map());
-
-  // Move focus to a queued block after a structural change (insert/merge).
-  useEffect(() => {
-    const target = pendingFocus.current;
-    if (!target) return;
-    pendingFocus.current = null;
-    const el = editors.current.get(target.id);
-    if (el) setCaret(el, target.caret);
-  }, [blocks]);
 
   const liveIds = useMemo(() => new Set(blocks.map((b) => b.id)), [blocks]);
   const activeSelected = useMemo(
     () => new Set([...selected].filter((id) => liveIds.has(id))),
     [selected, liveIds]
   );
-
-  const registerEditor = (id: string, el: HTMLDivElement | null) => {
-    if (el) editors.current.set(id, el);
-    else editors.current.delete(id);
-  };
-
-  const handleInput = (id: string, html: string) => onChangeBlocks(updateBlockText(blocks, id, html));
-
-  // Apply an inline formatting command to the focused block's selection, then
-  // sync the resulting HTML back into state.
-  const applyFormat = (
-    cmd: 'bold' | 'underline' | 'foreColor' | 'hiliteColor' | 'removeFormat',
-    value?: string
-  ) => {
-    const active = document.activeElement as HTMLElement | null;
-    const id = active?.getAttribute('data-block-id') ?? undefined;
-    try {
-      document.execCommand('styleWithCSS', false, 'true');
-    } catch {
-      /* not supported — ignore */
-    }
-    document.execCommand(cmd, false, value);
-    if (id) {
-      const el = editors.current.get(id);
-      if (el) onChangeBlocks(updateBlockText(blocks, id, normalizeHtml(el.innerHTML)));
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, id: string) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      const { blocks: next, newId } = insertBlockAfter(blocks, id);
-      onChangeBlocks(next);
-      pendingFocus.current = { id: newId, caret: 'start' };
-    } else if (e.key === 'Backspace' && caretAtStart(e.currentTarget)) {
-      const index = indexOf.get(id) ?? -1;
-      if (index > 0) {
-        e.preventDefault();
-        const prevId = blocks[index - 1].id;
-        const prevLen = editors.current.get(prevId)?.textContent?.length ?? 0;
-        const { blocks: next, mergedIntoId } = mergeWithPrevious(blocks, id);
-        onChangeBlocks(next);
-        if (mergedIntoId) pendingFocus.current = { id: mergedIntoId, caret: prevLen };
-      }
-    }
-  };
 
   const toggleSelect = (id: string, withShift: boolean) => {
     setSelected((prev) => {
@@ -123,6 +66,30 @@ export function DocumentView({ blocks, onChangeBlocks }: Props) {
     return indices[indices.length - 1] - indices[0] === indices.length - 1;
   }, [activeSelected, blocks]);
 
+  // --- Copying to the clipboard (plain text) ----------------------------
+  const slideToText = (slide: DocSlide) => {
+    const body = slide.blockIds.map((id) => htmlToPlainText(blockById.get(id)?.text ?? '')).join('\n');
+    return slide.title ? `${slide.title}\n${body}` : body;
+  };
+
+  const copyAll = async () => {
+    const text = slides.map(slideToText).join('\n\n').trim();
+    if (await copyText(text)) toast.success('Copied all text');
+    else toast.error('Copy failed');
+  };
+
+  const copySelection = async () => {
+    const ids = blocks.filter((b) => activeSelected.has(b.id)).map((b) => b.id);
+    const text = ids.map((id) => htmlToPlainText(blockById.get(id)?.text ?? '')).join('\n').trim();
+    if (await copyText(text)) toast.success(`Copied ${ids.length} line${ids.length === 1 ? '' : 's'}`);
+    else toast.error('Copy failed');
+  };
+
+  const copySlide = async (slide: DocSlide) => {
+    if (await copyText(slideToText(slide).trim())) toast.success('Copied slide');
+    else toast.error('Copy failed');
+  };
+
   const makeSlideFromSelection = () => {
     const indices = blocks.map((b, i) => (activeSelected.has(b.id) ? i : -1)).filter((i) => i >= 0);
     if (!indices.length) return;
@@ -137,13 +104,21 @@ export function DocumentView({ blocks, onChangeBlocks }: Props) {
 
   return (
     <div className="relative">
-      <FormatToolbar onCommand={applyFormat} />
+      <FormatToolbar onCommand={applyFormat} onCopyAll={copyAll} />
 
       {/* Floating action bar for the current line selection */}
       {activeSelected.size > 0 && (
         <div className="sticky top-[104px] z-20 flex justify-center pointer-events-none">
           <div className="pointer-events-auto flex items-center gap-3 px-4 py-2 rounded-full bg-gray-900 text-white shadow-lg text-sm">
             <span>{activeSelected.size} line{activeSelected.size === 1 ? '' : 's'} selected</span>
+            <button
+              onClick={copySelection}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              title="Copy selected lines"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Copy
+            </button>
             <button
               onClick={makeSlideFromSelection}
               disabled={!selectionIsContiguous}
@@ -182,6 +157,7 @@ export function DocumentView({ blocks, onChangeBlocks }: Props) {
               onTitle={(t) => onChangeBlocks(setSlideTitle(blocks, slide.id, t))}
               onColor={(c) => onChangeBlocks(setSlideColor(blocks, slide.id, c))}
               onUnmerge={() => onChangeBlocks(ungroupSlide(blocks, slide.id))}
+              onCopy={() => copySlide(slide)}
             />
 
             {slide.blockIds.map((bid) => {
@@ -241,7 +217,7 @@ export function DocumentView({ blocks, onChangeBlocks }: Props) {
           const last = blocks[blocks.length - 1];
           const { blocks: next, newId } = insertBlockAfter(blocks, last.id);
           onChangeBlocks(next);
-          pendingFocus.current = { id: newId, caret: 'start' };
+          pendingFocusRef.current = { id: newId, caret: 'start' };
         }}
         className="mt-3 ml-3 flex items-center gap-1.5 text-sm text-gray-400 hover:text-indigo-500 transition-colors"
       >
@@ -260,6 +236,7 @@ function SlideHeader({
   onTitle,
   onColor,
   onUnmerge,
+  onCopy,
 }: {
   index: number;
   title: string;
@@ -268,6 +245,7 @@ function SlideHeader({
   onTitle: (t: string) => void;
   onColor: (c: string) => void;
   onUnmerge: () => void;
+  onCopy: () => void;
 }) {
   return (
     <div className="group/header flex items-center gap-2 mb-1 pl-1">
@@ -282,6 +260,13 @@ function SlideHeader({
         className="flex-1 bg-transparent text-base font-semibold text-gray-900 dark:text-gray-100 outline-none border-b border-transparent focus:border-indigo-300 dark:focus:border-indigo-700 placeholder:text-gray-400 placeholder:font-normal"
       />
       <div className="opacity-0 group-hover/header:opacity-100 transition-opacity flex items-center gap-1">
+        <button
+          onClick={onCopy}
+          className="text-gray-300 hover:text-indigo-500 transition-colors"
+          title="Copy this slide's text"
+        >
+          <Copy className="w-4 h-4" />
+        </button>
         <SlideColorMenu value={color} onChange={onColor} />
         {canUnmerge && (
           <button

@@ -40,6 +40,39 @@ export const SLIDE_COLORS: Swatch[] = [
   { label: 'Gray', value: '#f3f4f6' },
 ];
 
+// Strip inline HTML to plain text (for copying to the clipboard).
+export function htmlToPlainText(html: string): string {
+  if (typeof document === 'undefined') return html.replace(/<[^>]+>/g, '');
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent ?? '';
+}
+
+// Copy plain text to the clipboard, with a best-effort fallback for older APIs.
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through to the legacy path */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 // Browsers leave a lone <br> behind in an emptied contentEditable; treat it as
 // empty so placeholders show and persisted HTML stays clean.
 export function normalizeHtml(html: string): string {

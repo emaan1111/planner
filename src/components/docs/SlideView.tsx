@@ -20,13 +20,22 @@ import { GripVertical, Trash2, LayoutGrid, Rows3, Minus, Plus, Type, AlignLeft, 
 import clsx from 'clsx';
 import { DocBlock, DocSlide } from '@/types/docs';
 import { getSlides, reorderSlides, setSlideTitle, setSlideColor, ungroupSlide, insertSlideAfter } from '@/lib/docModel';
-import { SlideColorMenu } from './DocFormatting';
+import { SlideColorMenu, FormatToolbar } from './DocFormatting';
 import { SlideModal } from './SlideModal';
+import { RichBlock } from './RichBlock';
+import { useBlockEditing } from './useBlockEditing';
 
 type SlideLayout = 'list' | 'grid';
 
 const MIN_COLS = 1;
 const MAX_COLS = 8;
+
+// Editing handlers shared with the slide bodies and the modal.
+export interface SlideEditing {
+  registerEditor: (id: string, el: HTMLDivElement | null) => void;
+  handleInput: (id: string, html: string) => void;
+  handleKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, id: string) => void;
+}
 
 interface Props {
   blocks: DocBlock[];
@@ -41,9 +50,12 @@ interface Props {
 
 export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols, onColsChange, showBody, onShowBodyChange }: Props) {
   const slides = useMemo(() => getSlides(blocks), [blocks]);
-  const htmlById = useMemo(() => new Map(blocks.map((b) => [b.id, b.text])), [blocks]);
+  const blockById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [maximized, setMaximized] = useState<number | null>(null);
+
+  const { registerEditor, handleInput, handleKeyDown, applyFormat } = useBlockEditing(blocks, onChangeBlocks);
+  const editing: SlideEditing = { registerEditor, handleInput, handleKeyDown };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -60,12 +72,13 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
 
   return (
     <div>
+      <FormatToolbar onCommand={applyFormat} />
+
       <div className="flex items-center justify-between gap-3 mb-4">
-        <p className="text-sm text-gray-400 hidden sm:block">
-          {layout === 'grid' ? `${clampedCols} per row — drag to reorder, zoom below.` : 'Drag to reorder — content is edited in the Text view.'}
+        <p className="text-sm text-gray-400 hidden md:block">
+          {layout === 'grid' ? `${clampedCols} per row — drag to reorder, zoom below.` : 'Drag to reorder. Click any text to edit it.'}
         </p>
         <div className="flex items-center gap-2 ml-auto">
-          {/* Show headline only vs headline + text */}
           <div className="flex items-center gap-1 p-0.5 rounded-lg bg-gray-100 dark:bg-gray-800">
             <button
               onClick={() => onShowBodyChange(false)}
@@ -85,7 +98,6 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
             </button>
           </div>
 
-          {/* List vs grid */}
           <div className="flex items-center gap-1 p-0.5 rounded-lg bg-gray-100 dark:bg-gray-800">
             <button
               onClick={() => onLayoutChange('list')}
@@ -118,7 +130,8 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
                 key={slide.id}
                 slide={slide}
                 index={index}
-                htmlById={htmlById}
+                blockById={blockById}
+                editing={editing}
                 layout={layout}
                 showBody={showBody}
                 canDelete={index !== 0}
@@ -144,9 +157,6 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
         Add slide
       </button>
 
-      <SlideModal slides={slides} htmlById={htmlById} index={maximized} onIndex={setMaximized} onClose={() => setMaximized(null)} />
-
-      {/* Floating zoom control — fewer columns = zoomed in, more = zoomed out */}
       {layout === 'grid' && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 px-2 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
           <button
@@ -170,6 +180,17 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
           </button>
         </div>
       )}
+
+      <SlideModal
+        slides={slides}
+        blockById={blockById}
+        editing={editing}
+        onCommand={applyFormat}
+        index={maximized}
+        onIndex={setMaximized}
+        onClose={() => setMaximized(null)}
+        onTitle={(slideId, t) => onChangeBlocks(setSlideTitle(blocks, slideId, t))}
+      />
     </div>
   );
 }
@@ -177,7 +198,8 @@ export function SlideView({ blocks, onChangeBlocks, layout, onLayoutChange, cols
 interface CardProps {
   slide: DocSlide;
   index: number;
-  htmlById: Map<string, string>;
+  blockById: Map<string, DocBlock>;
+  editing: SlideEditing;
   layout: SlideLayout;
   showBody: boolean;
   canDelete: boolean;
@@ -209,19 +231,23 @@ type InnerProps = CardProps & {
   dragHandle: Pick<SortableState, 'attributes' | 'listeners'>;
 };
 
-// Read-only formatted body: one rendered paragraph per block.
-function SlideBody({ slide, htmlById, small }: { slide: DocSlide; htmlById: Map<string, string>; small?: boolean }) {
-  const bodyIds = slide.blockIds.slice(1); // first block backs the headline area; show the rest
-  if (bodyIds.length === 0) return null;
+// Editable formatted body: every block in the slide as a rich paragraph.
+function SlideBody({ slide, blockById, editing, small }: { slide: DocSlide; blockById: Map<string, DocBlock>; editing: SlideEditing; small?: boolean }) {
   return (
-    <div className={clsx('space-y-1', small ? 'text-xs leading-relaxed' : 'text-sm leading-relaxed')}>
-      {bodyIds.map((id) => {
-        const html = htmlById.get(id) ?? '';
+    <div className={clsx(small ? 'text-xs leading-relaxed' : 'text-sm leading-relaxed', 'text-gray-600 dark:text-gray-400')}>
+      {slide.blockIds.map((id, i) => {
+        const block = blockById.get(id);
+        if (!block) return null;
         return (
-          <div
+          <RichBlock
             key={id}
-            className="text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words"
-            dangerouslySetInnerHTML={{ __html: html || '<br>' }}
+            blockId={id}
+            html={block.text}
+            placeholder={i === 0 ? 'Add text…' : ''}
+            onInput={(html) => editing.handleInput(id, html)}
+            onKeyDown={(e) => editing.handleKeyDown(e, id)}
+            registerRef={editing.registerEditor}
+            className="py-0.5"
           />
         );
       })}
@@ -229,7 +255,7 @@ function SlideBody({ slide, htmlById, small }: { slide: DocSlide; htmlById: Map<
   );
 }
 
-function ListSlide({ slide, index, htmlById, showBody, canDelete, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
+function ListSlide({ slide, index, blockById, editing, showBody, canDelete, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
   return (
     <div
       ref={setNodeRef}
@@ -267,14 +293,14 @@ function ListSlide({ slide, index, htmlById, showBody, canDelete, onTitle, onCol
       </div>
       {showBody && (
         <div className="px-3 py-2">
-          <SlideBody slide={slide} htmlById={htmlById} />
+          <SlideBody slide={slide} blockById={blockById} editing={editing} />
         </div>
       )}
     </div>
   );
 }
 
-function GridSlide({ slide, index, htmlById, showBody, canDelete, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
+function GridSlide({ slide, index, blockById, editing, showBody, canDelete, onTitle, onColor, onUnmerge, onInsertAfter, onMaximize, setNodeRef, style, isDragging, dragHandle }: InnerProps) {
   return (
     <div
       ref={setNodeRef}
@@ -314,7 +340,7 @@ function GridSlide({ slide, index, htmlById, showBody, canDelete, onTitle, onCol
         />
         {showBody && (
           <div className="flex-1 mt-1.5 overflow-auto min-h-0">
-            <SlideBody slide={slide} htmlById={htmlById} small />
+            <SlideBody slide={slide} blockById={blockById} editing={editing} small />
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Bold, Underline, Baseline, Highlighter, Paintbrush, ChevronDown, Check } from 'lucide-react';
+import { Bold, Underline, Baseline, Highlighter, Paintbrush, ChevronDown, Check, Copy } from 'lucide-react';
 import { TEXT_COLORS, HIGHLIGHT_COLORS, SLIDE_COLORS, Swatch } from './richText';
 
 // ---------------------------------------------------------------------------
@@ -12,14 +12,21 @@ import { TEXT_COLORS, HIGHLIGHT_COLORS, SLIDE_COLORS, Swatch } from './richText'
 
 interface FormatToolbarProps {
   onCommand: (cmd: 'bold' | 'underline' | 'foreColor' | 'hiliteColor' | 'removeFormat', value?: string) => void;
+  variant?: 'sticky' | 'bar' | 'inline';
+  onCopyAll?: () => void;
 }
 
-export function FormatToolbar({ onCommand }: FormatToolbarProps) {
+export function FormatToolbar({ onCommand, variant = 'sticky', onCopyAll }: FormatToolbarProps) {
   const keep = (e: React.MouseEvent) => e.preventDefault();
 
   return (
     <div
-      className="sticky top-[57px] z-20 -mx-4 px-4 py-1.5 mb-3 flex items-center gap-1 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b border-gray-100 dark:border-gray-800"
+      className={clsx(
+        'flex items-center gap-1',
+        variant === 'sticky' && 'sticky top-[57px] z-20 -mx-4 px-4 py-1.5 mb-3 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b border-gray-100 dark:border-gray-800',
+        variant === 'bar' && 'mb-3 px-1 py-1 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800',
+        variant === 'inline' && ''
+      )}
     >
       <ToolbarButton label="Bold" onMouseDown={keep} onClick={() => onCommand('bold')}>
         <Bold className="w-4 h-4" />
@@ -50,6 +57,16 @@ export function FormatToolbar({ onCommand }: FormatToolbarProps) {
       <ToolbarButton label="Clear formatting" onMouseDown={keep} onClick={() => onCommand('removeFormat')}>
         <span className="text-xs font-medium px-1">Clear</span>
       </ToolbarButton>
+
+      {onCopyAll && (
+        <>
+          <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+          <ToolbarButton label="Copy all text" onClick={onCopyAll}>
+            <Copy className="w-4 h-4" />
+            <span className="text-xs font-medium px-1">Copy all</span>
+          </ToolbarButton>
+        </>
+      )}
     </div>
   );
 }
@@ -72,7 +89,7 @@ function ToolbarButton({
       aria-label={label}
       onMouseDown={onMouseDown}
       onClick={onClick}
-      className="p-1.5 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      className="inline-flex items-center p-1.5 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
     >
       {children}
     </button>
