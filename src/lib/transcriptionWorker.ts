@@ -19,6 +19,13 @@ import type { Word } from '@/types/video';
 
 const MAX_ATTEMPTS = 3;
 
+// Pause between jobs so a big overnight batch doesn't hammer YouTube (a common
+// cause of 403s). Longer after a failure, which is usually rate-limiting.
+const JOB_DELAY_MS = Number(process.env.TRANSCRIBE_JOB_DELAY_MS) || 4000;
+const FAILURE_COOLDOWN_MS = Number(process.env.TRANSCRIBE_FAILURE_COOLDOWN_MS) || 30000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // Keep the singleton on globalThis so Next's dev HMR doesn't spawn parallel
 // loops (mirrors the prisma client pattern in lib/prisma.ts).
 const g = globalThis as unknown as {
@@ -60,16 +67,20 @@ async function runLoop(): Promise<void> {
       if (!job) break;
       // A job can vanish mid-drain (user deletes it); never let that stop the
       // queue. Per-job failures are already handled inside processJob.
-      await processJob(job.id).catch((err) => {
+      const ok = await processJob(job.id).catch((err) => {
         console.error(`Transcription job ${job.id} threw out of band:`, err);
+        return false;
       });
+      // Breathe between jobs; back off longer after a failure (likely throttling).
+      await sleep(ok ? JOB_DELAY_MS : FAILURE_COOLDOWN_MS);
     }
   } finally {
     state.running = false;
   }
 }
 
-async function processJob(jobId: string): Promise<void> {
+// Returns true on success, false on failure (job was requeued or errored).
+async function processJob(jobId: string): Promise<boolean> {
   // Claim the job, bumping the attempt counter.
   const job = await prisma.transcriptionJob.update({
     where: { id: jobId },
@@ -119,6 +130,7 @@ async function processJob(jobId: string): Promise<void> {
         error: null,
       },
     });
+    return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Transcription failed';
     const current = await prisma.transcriptionJob.findUnique({ where: { id: jobId } });
@@ -132,6 +144,7 @@ async function processJob(jobId: string): Promise<void> {
       },
     });
     console.error(`Transcription job ${jobId} failed (attempt ${current?.attempts}):`, message);
+    return false;
   } finally {
     if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => {});
   }

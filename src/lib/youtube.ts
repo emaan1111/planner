@@ -63,6 +63,30 @@ function isMissingBinary(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'ENOENT';
 }
 
+// Common args that make YouTube access resilient. YouTube returns 403s when a
+// chosen player client's format URLs are token-gated, or when one IP makes too
+// many rapid requests (exactly what pulling a whole channel does). We therefore:
+//   - offer several player clients as fallbacks (yt-dlp skips unsupported ones),
+//   - retry transient failures,
+//   - optionally send cookies for age/members-restricted videos.
+// All of it is tunable via env without code changes.
+function ytCommonArgs(): string[] {
+  const args: string[] = ['--no-warnings', '--ignore-config'];
+  const clients = process.env.YT_DLP_PLAYER_CLIENTS || 'default,web_safari,tv,ios';
+  args.push('--extractor-args', `youtube:player_client=${clients}`);
+  args.push('--retries', '10', '--extractor-retries', '5');
+  if (process.env.YT_DLP_COOKIES_FROM_BROWSER) {
+    args.push('--cookies-from-browser', process.env.YT_DLP_COOKIES_FROM_BROWSER);
+  }
+  if (process.env.YT_DLP_COOKIES) {
+    args.push('--cookies', process.env.YT_DLP_COOKIES);
+  }
+  if (process.env.YT_DLP_EXTRA_ARGS) {
+    args.push(...process.env.YT_DLP_EXTRA_ARGS.split(' ').filter(Boolean));
+  }
+  return args;
+}
+
 async function runYtDlp(args: string[]): Promise<string> {
   try {
     const { stdout } = await execFileAsync(YT_DLP, args, { maxBuffer: MAX_BUFFER });
@@ -128,9 +152,9 @@ function entryToVideo(e: FlatEntry, channel: string | null): ResolvedVideo | nul
 // Resolve a single video URL into its metadata.
 export async function resolveVideo(url: string): Promise<ResolvedVideo> {
   const stdout = await runYtDlp([
+    ...ytCommonArgs(),
     '--dump-single-json',
     '--no-playlist',
-    '--no-warnings',
     url,
   ]);
   const info = JSON.parse(stdout) as FlatEntry & { webpage_url?: string };
@@ -143,9 +167,9 @@ export async function resolveVideo(url: string): Promise<ResolvedVideo> {
 export async function listChannel(input: string, tab: ChannelTab): Promise<ResolvedChannel> {
   const target = looksLikeChannel(input) ? channelTabUrl(input, tab) : input;
   const stdout = await runYtDlp([
+    ...ytCommonArgs(),
     '--dump-single-json',
     '--flat-playlist',
-    '--no-warnings',
     '--playlist-end',
     String(PLAYLIST_LIMIT),
     target,
@@ -203,16 +227,35 @@ export interface DownloadedAudio {
 // the raw bestaudio stream); the transcribe step segments + compresses it.
 export async function downloadAudio(url: string): Promise<DownloadedAudio> {
   const workDir = await mkdtemp(path.join(tmpdir(), 'yt-transcribe-'));
-  await runYtDlp([
-    '-f',
-    'bestaudio/best',
-    '--no-playlist',
-    '--no-warnings',
-    '--no-part',
-    '-o',
-    path.join(workDir, 'source.%(ext)s'),
-    url,
-  ]);
+  try {
+    await runYtDlp([
+      ...ytCommonArgs(),
+      '-f',
+      process.env.YT_DLP_FORMAT || 'bestaudio[ext=m4a]/bestaudio/best',
+      '--no-playlist',
+      '--no-part',
+      '--fragment-retries',
+      '15',
+      // Space out requests a little so a whole-channel batch doesn't trip
+      // YouTube's per-IP anti-bot 403s.
+      '--sleep-requests',
+      process.env.YT_DLP_SLEEP_REQUESTS || '1',
+      '-o',
+      path.join(workDir, 'source.%(ext)s'),
+      url,
+    ]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/403|Forbidden/i.test(msg)) {
+      throw new Error(
+        'YouTube returned 403 Forbidden (often rate-limiting on big batches, or an ' +
+          'age/members-restricted video). It will retry automatically; if it keeps failing, ' +
+          'set YT_DLP_COOKIES_FROM_BROWSER (e.g. "chrome") or YT_DLP_COOKIES to a cookies.txt. ' +
+          `Original: ${msg}`
+      );
+    }
+    throw err;
+  }
 
   const files = (await readdir(workDir)).filter((f) => f.startsWith('source.'));
   if (files.length === 0) {

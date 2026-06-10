@@ -1,4 +1,6 @@
 [phases.setup]
 # yt-dlp + ffmpeg power the server-side YouTube transcription pipeline
-# (src/lib/youtube.ts, src/lib/transcribeServer.ts).
-nixPkgs = ["nodejs_22", "yt-dlp", "ffmpeg"]
+# (src/lib/youtube.ts, src/lib/transcribeServer.ts). deno is what current yt-dlp
+# uses to solve YouTube's JS challenges (nsig) — without a JS runtime some
+# videos 403.
+nixPkgs = ["nodejs_22", "yt-dlp", "ffmpeg", "deno"]

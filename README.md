@@ -49,9 +49,21 @@ The server-side pipeline shells out to two system binaries and uses the OpenAI W
 | --- | --- | --- |
 | `yt-dlp` | download audio + list channel videos | `brew install yt-dlp` (macOS); bundled on Railway via `nixpacks.toml` |
 | `ffmpeg` | split/downsample audio into chunks | `brew install ffmpeg`; bundled on Railway via `nixpacks.toml` |
+| `deno` | yt-dlp uses it to solve YouTube's JS challenges (avoids some 403s) | installed automatically with `yt-dlp` on macOS; bundled on Railway |
 | `OPENAI_API_KEY` | Whisper transcription (~$0.006/min audio) | set in `.env` |
 
-Optional overrides: `YT_DLP_PATH` and `FFMPEG_PATH` point at specific binaries if they aren't on `PATH`.
+Optional env overrides:
+
+| Var | Purpose |
+| --- | --- |
+| `YT_DLP_PATH`, `FFMPEG_PATH` | point at specific binaries if not on `PATH` |
+| `YT_DLP_PLAYER_CLIENTS` | comma-list of YouTube player clients to try (default `default,web_safari,tv,ios`) — change if you hit persistent 403s |
+| `YT_DLP_COOKIES_FROM_BROWSER` | e.g. `chrome` — send your logged-in cookies for age/members-restricted videos and to reduce 403s |
+| `YT_DLP_COOKIES` | path to a `cookies.txt` (alternative to the above) |
+| `YT_DLP_FORMAT`, `YT_DLP_SLEEP_REQUESTS`, `YT_DLP_EXTRA_ARGS` | tune download format / request spacing / pass any extra yt-dlp flags |
+| `TRANSCRIBE_JOB_DELAY_MS`, `TRANSCRIBE_FAILURE_COOLDOWN_MS` | pause between jobs / after a failure, to stay under YouTube's rate limits |
+
+**Hitting 403 Forbidden?** It's almost always YouTube rate-limiting a big batch or an age/members-restricted video. The worker already retries with several player clients and backs off, but the reliable fix is to set `YT_DLP_COOKIES_FROM_BROWSER=chrome` (or your browser) so requests are authenticated. Keeping `yt-dlp` updated (`brew upgrade yt-dlp`) also matters, since YouTube changes frequently.
 
 ## 🚀 Getting Started
 
