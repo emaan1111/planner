@@ -14,6 +14,8 @@ import {
   RotateCcw,
   Play,
   Pause,
+  Youtube,
+  ExternalLink,
 } from 'lucide-react';
 import { useVideoProject, useUpdateVideoProject } from '@/hooks/useVideoProjectsQuery';
 import { getVideoBlob, saveVideoBlob } from '@/lib/videoBlobStore';
@@ -22,6 +24,7 @@ import { transcribeAudio } from '@/lib/transcribeClient';
 import { buildCutRanges, buildKeptSegments, editedDuration, nextPlayableTime } from '@/lib/edl';
 import { ToastContainer, toast } from '@/components/ui/Toast';
 import { Word } from '@/types/video';
+import { YouTubePlayer, type YouTubePlayerHandle } from '@/components/video/YouTubePlayer';
 
 function fmt(sec: number): string {
   if (!Number.isFinite(sec)) return '0:00';
@@ -59,6 +62,9 @@ export default function VideoEditorPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const reattachRef = useRef<HTMLInputElement>(null);
+  const ytRef = useRef<YouTubePlayerHandle>(null);
+
+  const isYouTube = project?.source === 'youtube';
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -151,19 +157,32 @@ export default function VideoEditorPage() {
     setCurrentTime(t);
   }, [cutRanges, duration]);
 
-  const seekTo = useCallback((time: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.currentTime = time;
-    setCurrentTime(time);
-  }, []);
+  const seekTo = useCallback(
+    (time: number) => {
+      if (isYouTube) {
+        ytRef.current?.seekTo(time);
+        setCurrentTime(time);
+        return;
+      }
+      const video = videoRef.current;
+      if (!video) return;
+      video.currentTime = time;
+      setCurrentTime(time);
+    },
+    [isYouTube]
+  );
 
   const togglePlay = useCallback(() => {
+    if (isYouTube) {
+      if (isPlaying) ytRef.current?.pause();
+      else ytRef.current?.play();
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) video.play();
     else video.pause();
-  }, []);
+  }, [isYouTube, isPlaying]);
 
   // --- Transcription ----------------------------------------------------------
   const runTranscription = useCallback(async () => {
@@ -322,23 +341,38 @@ export default function VideoEditorPage() {
               </div>
               {deletedCount > 0 && <div className="text-rose-500">{deletedCount} words cut</div>}
             </div>
-            <button
-              onClick={runExport}
-              disabled={exportRatio !== null || keptSegments.length === 0 || words.length === 0}
-              className="flex items-center gap-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-            >
-              {exportRatio !== null ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Exporting {Math.round(exportRatio * 100)}%
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  Export MP4
-                </>
-              )}
-            </button>
+            {isYouTube ? (
+              project.sourceUrl && (
+                <a
+                  href={project.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg hover:border-red-400 transition-colors"
+                >
+                  <Youtube className="w-4 h-4 text-red-600" />
+                  Open on YouTube
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
+                </a>
+              )
+            ) : (
+              <button
+                onClick={runExport}
+                disabled={exportRatio !== null || keptSegments.length === 0 || words.length === 0}
+                className="flex items-center gap-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {exportRatio !== null ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Exporting {Math.round(exportRatio * 100)}%
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    Export MP4
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -346,7 +380,23 @@ export default function VideoEditorPage() {
       <div className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: video player */}
         <div className="lg:sticky lg:top-20 self-start">
-          {videoUrl ? (
+          {isYouTube && project.youtubeId ? (
+            <div className="bg-black rounded-xl overflow-hidden shadow-sm">
+              <YouTubePlayer
+                ref={ytRef}
+                youtubeId={project.youtubeId}
+                onTime={(t) => setCurrentTime(t)}
+                onPlayingChange={setIsPlaying}
+              />
+              <div className="flex items-center gap-3 px-3 py-2 bg-gray-900 text-gray-200 text-xs">
+                <button onClick={togglePlay} className="p-1.5 hover:bg-gray-800 rounded">
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </button>
+                <span className="tabular-nums">{fmt(currentTime)} / {fmt(duration)}</span>
+                <span className="ml-auto text-gray-400">click a word to jump there</span>
+              </div>
+            </div>
+          ) : videoUrl ? (
             <div className="bg-black rounded-xl overflow-hidden shadow-sm">
               <video
                 ref={videoRef}

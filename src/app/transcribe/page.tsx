@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Upload, Film, Trash2, Loader2, Clock } from 'lucide-react';
+import { ArrowLeft, Upload, Film, Trash2, Loader2, Clock, Youtube } from 'lucide-react';
 import clsx from 'clsx';
 import {
   useVideoProjects,
@@ -14,6 +14,8 @@ import {
 import { saveVideoBlob, deleteVideoBlob } from '@/lib/videoBlobStore';
 import { ToastContainer, toast } from '@/components/ui/Toast';
 import { VideoProject } from '@/types/video';
+import { YouTubeImportModal } from '@/components/video/YouTubeImportModal';
+import { TranscriptionQueue } from '@/components/video/TranscriptionQueue';
 
 function readVideoDuration(file: File): Promise<number> {
   return new Promise((resolve) => {
@@ -52,6 +54,7 @@ export default function TranscribeListPage() {
   const deleteProject = useDeleteVideoProject();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [youtubeOpen, setYoutubeOpen] = useState(false);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -99,23 +102,35 @@ export default function TranscribeListPage() {
               <span className="text-sm text-gray-400">{projects.length}</span>
             </div>
           </div>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
-          >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? 'Uploading…' : 'Upload video'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setYoutubeOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-red-400 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-colors"
+            >
+              <Youtube className="w-4 h-4 text-red-600" />
+              From YouTube
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploading ? 'Uploading…' : 'Upload video'}
+            </button>
+          </div>
           <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleFile} />
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Upload a video to transcribe it on-device, then edit the video by editing its transcript —
-          delete words to cut them, and export a trimmed MP4. Nothing is uploaded to a server.
+          Upload a video to transcribe it on-device, or paste a YouTube URL to transcribe it on the
+          server — start a whole channel’s worth and it’ll keep going overnight. Then edit by editing
+          the transcript.
         </p>
+
+        <TranscriptionQueue />
 
         {isLoading ? (
           <p className="text-sm text-gray-400">Loading…</p>
@@ -143,7 +158,11 @@ export default function TranscribeListPage() {
                   className="block bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 hover:shadow-md hover:border-rose-300 dark:hover:border-rose-700 transition-all"
                 >
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <Film className="w-8 h-8 text-rose-500 shrink-0" />
+                    {project.source === 'youtube' ? (
+                      <Youtube className="w-8 h-8 text-red-600 shrink-0" />
+                    ) : (
+                      <Film className="w-8 h-8 text-rose-500 shrink-0" />
+                    )}
                     <span
                       className={clsx(
                         'text-xs font-medium px-2 py-0.5 rounded-full capitalize',
@@ -174,6 +193,7 @@ export default function TranscribeListPage() {
           </div>
         )}
       </main>
+      {youtubeOpen && <YouTubeImportModal onClose={() => setYoutubeOpen(false)} />}
       <ToastContainer />
     </div>
   );

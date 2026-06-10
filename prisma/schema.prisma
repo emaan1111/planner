@@ -356,7 +356,44 @@ model VideoProject {
   durationSec Float    @default(0)
   fileName    String?  // original upload name, for re-attaching the blob
   words       Json     @default("[]") // Word[]: { id, text, start, end, deleted? }
+  // Source of the media. "upload" projects carry a local blob in IndexedDB and
+  // can be trimmed + exported. "youtube" projects have no local file: they were
+  // transcribed server-side from a URL, so the editor embeds the YouTube player
+  // (synced to the transcript) and export is disabled.
+  source      String   @default("upload") // upload | youtube
+  sourceUrl   String?  // canonical YouTube watch URL (youtube source)
+  youtubeId   String?  // YouTube video id, for the embedded player
   order       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ----------------------------------------------------------------------------
+// Transcription queue: durable, server-side jobs so a batch of YouTube videos
+// (e.g. "all live streams from this channel") transcribes overnight without the
+// browser staying open. The in-process worker (src/lib/transcriptionWorker.ts)
+// claims queued jobs FIFO, downloads audio with yt-dlp, transcribes each chunk
+// with OpenAI Whisper, and writes the result into a VideoProject. Jobs survive
+// server restarts: any job stuck in a running state is requeued on boot.
+// ----------------------------------------------------------------------------
+model TranscriptionJob {
+  id             String   @id @default(cuid())
+  source         String   @default("youtube") // youtube
+  url            String   // the video URL to transcribe
+  youtubeId      String?  // resolved YouTube video id
+  title          String?  // resolved video title (for display)
+  channel        String?  // resolved channel/uploader name
+  status         String   @default("queued") // queued | downloading | transcribing | done | error | canceled
+  stage          String?  // human-readable current step, for the UI
+  progress       Float    @default(0) // 0..1, best-effort
+  durationSec    Float    @default(0)
+  error          String?  // failure reason when status = error
+  attempts       Int      @default(0)
+  batchId        String?  // groups jobs enqueued together (one channel pull)
+  videoProjectId String?  // the VideoProject created on success
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@index([batchId])
 }

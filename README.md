@@ -38,6 +38,21 @@ A beautiful, interactive planning application with smooth animations, drag-and-d
 - Resume where you left off
 - No account required
 
+### 🎬 Video Studio (transcript-driven editor)
+- Upload a video to transcribe it **on-device** (Whisper in the browser), then edit by editing the transcript and export a trimmed MP4.
+- **Transcribe from YouTube**: paste a video URL, or a channel URL and pick which videos — including a one-click *"all live streams from this channel"*. Transcription runs **server-side in a durable queue**, so you can start a whole channel and close the tab; it keeps going overnight and the finished transcripts appear in the Studio.
+
+#### Requirements for YouTube transcription
+The server-side pipeline shells out to two system binaries and uses the OpenAI Whisper API:
+
+| Dependency | Why | Install |
+| --- | --- | --- |
+| `yt-dlp` | download audio + list channel videos | `brew install yt-dlp` (macOS); bundled on Railway via `nixpacks.toml` |
+| `ffmpeg` | split/downsample audio into chunks | `brew install ffmpeg`; bundled on Railway via `nixpacks.toml` |
+| `OPENAI_API_KEY` | Whisper transcription (~$0.006/min audio) | set in `.env` |
+
+Optional overrides: `YT_DLP_PATH` and `FFMPEG_PATH` point at specific binaries if they aren't on `PATH`.
+
 ## 🚀 Getting Started
 
 ### Prerequisites

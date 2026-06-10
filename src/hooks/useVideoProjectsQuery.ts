@@ -17,6 +17,9 @@ function hydrate(raw: RawProject): VideoProject {
   return {
     ...raw,
     words: Array.isArray(raw.words) ? raw.words : [],
+    source: raw.source ?? 'upload',
+    sourceUrl: raw.sourceUrl ?? null,
+    youtubeId: raw.youtubeId ?? null,
     createdAt: new Date(raw.createdAt),
     updatedAt: new Date(raw.updatedAt),
   };

@@ -1,2 +1,4 @@
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+# yt-dlp + ffmpeg power the server-side YouTube transcription pipeline
+# (src/lib/youtube.ts, src/lib/transcribeServer.ts).
+nixPkgs = ["nodejs_22", "yt-dlp", "ffmpeg"]
