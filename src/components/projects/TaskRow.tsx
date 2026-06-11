@@ -5,15 +5,16 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Clock, Archive } from 'lucide-react';
 import { Task, Project, EventColor, colorClasses } from '@/types';
-import { TaskColumnKey, gridFor } from '@/lib/pm';
+import { ResolvedColumn, columnReactKey, gridFor } from '@/lib/pm';
 import { StatusPill, PriorityPill } from './Pills';
 import { CategoryPill } from './CategoryPill';
 import { TypePill } from './TypePill';
+import { CustomCell } from './CustomCell';
 
 export interface TaskRowProps {
   task: Task;
   /** Ordered value columns to render between the title and the archive button. */
-  columns: TaskColumnKey[];
+  columns: ResolvedColumn[];
   accentColor?: EventColor;
   selected: boolean;
   onToggleSelect: (id: string) => void;
@@ -27,6 +28,8 @@ export interface TaskRowProps {
   typeOptions?: string[];
   /** Project lookup for the Project column (used in the flat/ungrouped list). */
   projectsById?: Map<string, Project>;
+  /** Persist a new select option onto a custom column definition. */
+  onAddColumnOption?: (columnId: string, option: string) => void;
 }
 
 export function TaskRow({
@@ -42,6 +45,7 @@ export function TaskRow({
   categories,
   typeOptions,
   projectsById,
+  onAddColumnOption,
 }: TaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -50,13 +54,34 @@ export function TaskRow({
   const style = { transform: CSS.Transform.toString(transform), transition, gridTemplateColumns: gridFor(columns) };
   const accent = accentColor ? colorClasses[accentColor] : null;
 
-  const renderCell = (col: TaskColumnKey) => {
-    switch (col) {
+  // Write a value into the task's customFields map (dropping empties).
+  const setCustom = (columnId: string, v: unknown) => {
+    const next = { ...(task.customFields ?? {}) };
+    if (v === undefined || v === null || v === '') delete next[columnId];
+    else next[columnId] = v;
+    onUpdate(task.id, { customFields: next });
+  };
+
+  const renderCell = (col: ResolvedColumn) => {
+    const key = columnReactKey(col);
+    if (col.kind === 'custom') {
+      return (
+        <div key={key} className="min-w-0">
+          <CustomCell
+            column={col.def}
+            value={task.customFields?.[col.def.id]}
+            onChange={(v) => setCustom(col.def.id, v)}
+            onAddOption={(option) => onAddColumnOption?.(col.def.id, option)}
+          />
+        </div>
+      );
+    }
+    switch (col.key) {
       case 'project': {
         const p = task.projectId ? projectsById?.get(task.projectId) : undefined;
         const pc = p ? colorClasses[p.color] ?? colorClasses.blue : null;
         return (
-          <div key={col} className="flex justify-center min-w-0">
+          <div key={key} className="flex justify-center min-w-0">
             {p && pc ? (
               <span className={clsx('inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium max-w-full', pc.light, pc.text)}>
                 <span className={clsx('w-2 h-2 rounded-full flex-shrink-0', pc.bg)} />
@@ -70,31 +95,31 @@ export function TaskRow({
       }
       case 'type':
         return (
-          <div key={col} className="flex justify-center min-w-0">
+          <div key={key} className="flex justify-center min-w-0">
             <TypePill value={task.linkedPlanType} options={typeOptions ?? []} onChange={(t) => onUpdate(task.id, { linkedPlanType: t })} />
           </div>
         );
       case 'category':
         return (
-          <div key={col} className="flex justify-center min-w-0">
+          <div key={key} className="flex justify-center min-w-0">
             <CategoryPill value={task.category} categories={categories ?? []} onChange={(c) => onUpdate(task.id, { category: c })} />
           </div>
         );
       case 'status':
         return (
-          <div key={col} className="flex justify-center">
+          <div key={key} className="flex justify-center">
             <StatusPill status={task.status} onChange={(s) => onUpdate(task.id, { status: s })} fullWidth />
           </div>
         );
       case 'priority':
         return (
-          <div key={col} className="flex justify-center">
+          <div key={key} className="flex justify-center">
             <PriorityPill priority={task.priority} onChange={(p) => onUpdate(task.id, { priority: p })} />
           </div>
         );
       case 'due':
         return (
-          <div key={col} className="flex justify-center">
+          <div key={key} className="flex justify-center">
             {task.dueDate ? (
               <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
                 <Clock className="w-3 h-3" />

@@ -55,6 +55,8 @@ model Task {
   linkedEventId  String?
   projectId      String?
   order          Int      @default(0)
+  // Values for user-defined columns, keyed by TaskColumn.id (see TaskColumn).
+  customFields   Json     @default("{}")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -64,6 +66,20 @@ model Task {
 
   @@index([bucket])
   @@index([archived])
+}
+
+// User-defined columns for the Projects list view. Each column has a type
+// (text/number/select/date/checkbox); per-task values live in Task.customFields
+// keyed by this id. Global (shared across all projects' list view).
+model TaskColumn {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   @default("text") // text | number | select | date | checkbox
+  options   Json     @default("[]")   // select: string[] of option labels
+  width     Int      @default(130)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Key Decisions

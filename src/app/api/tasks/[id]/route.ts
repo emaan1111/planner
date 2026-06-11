@@ -51,6 +51,7 @@ export async function PUT(
     if ('linkedEventId' in body) data.linkedEventId = body.linkedEventId || null;
     if ('projectId' in body) data.projectId = body.projectId || null;
     if ('order' in body) data.order = body.order;
+    if ('customFields' in body) data.customFields = body.customFields ?? {};
 
     const task = await prisma.task.update({
       where: { id },

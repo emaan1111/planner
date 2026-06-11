@@ -77,6 +77,22 @@ export interface Task {
   linkedEventId?: string;
   projectId?: string;
   order?: number;
+  /** Values for user-defined columns, keyed by TaskColumn.id. */
+  customFields?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// User-defined column for the Projects list view.
+export type CustomFieldType = 'text' | 'number' | 'select' | 'date' | 'checkbox';
+
+export interface TaskColumn {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options: string[]; // for select columns
+  width: number;
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }

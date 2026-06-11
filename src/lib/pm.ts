@@ -3,7 +3,7 @@
 // Board, Kanban, Cards, and Timeline views all stay visually consistent.
 
 import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
-import { Task, TaskStatus, TaskPriority, TaskBucket, EventColor } from '@/types';
+import { Task, TaskColumn, TaskStatus, TaskPriority, TaskBucket, EventColor } from '@/types';
 
 // ---- Status (monday signature colors) ----------------------------------------
 
@@ -107,19 +107,25 @@ export function openCount(tasks: Task[]): number {
 
 // ---- Board list-view columns -------------------------------------------------
 // The list view renders a monday-style table. Status / Priority / Due are always
-// shown; Project / Type / Category are optional columns the user can add via the
-// "Columns" menu. A single ordered column list drives both the header and the
-// rows so everything stays aligned.
+// shown; Project / Type / Category are optional built-in columns; and users can
+// add their own custom columns of varying types (TaskColumn). A single ordered
+// list of ResolvedColumns drives both the header and the rows so everything
+// stays aligned for any combination.
 
-export type TaskColumnKey = 'project' | 'type' | 'category' | 'status' | 'priority' | 'due';
+export type BuiltInColumnKey = 'project' | 'type' | 'category' | 'status' | 'priority' | 'due';
 
-/** Optional columns the user can toggle on from the board's "Columns" menu. */
+/** A column to render: either a built-in field or a user-defined custom column. */
+export type ResolvedColumn =
+  | { kind: 'builtin'; key: BuiltInColumnKey }
+  | { kind: 'custom'; def: TaskColumn };
+
+/** Built-in columns the user can toggle on from the board's "Columns" menu. */
 export const ADDABLE_COLUMNS: { key: 'type' | 'category'; label: string }[] = [
   { key: 'type', label: 'Type' },
   { key: 'category', label: 'Category' },
 ];
 
-export const COLUMN_LABEL: Record<TaskColumnKey, string> = {
+const BUILTIN_LABEL: Record<BuiltInColumnKey, string> = {
   project: 'Project',
   type: 'Type',
   category: 'Category',
@@ -128,7 +134,7 @@ export const COLUMN_LABEL: Record<TaskColumnKey, string> = {
   due: 'Due',
 };
 
-const COLUMN_WIDTH: Record<TaskColumnKey, string> = {
+const BUILTIN_WIDTH: Record<BuiltInColumnKey, string> = {
   project: '130px',
   type: '120px',
   category: '120px',
@@ -137,21 +143,40 @@ const COLUMN_WIDTH: Record<TaskColumnKey, string> = {
   due: '96px',
 };
 
-// Canonical left-to-right order of the value columns (between Task title + archive).
-const COLUMN_ORDER: TaskColumnKey[] = ['project', 'type', 'category', 'status', 'priority', 'due'];
+// Canonical left-to-right order of the built-in value columns (custom columns
+// are appended after these, in their own configured order).
+const BUILTIN_ORDER: BuiltInColumnKey[] = ['project', 'type', 'category', 'status', 'priority', 'due'];
 
-/** Resolve the ordered list of value columns from a set of toggles. */
-export function resolveColumns(opts: { project?: boolean; type?: boolean; category?: boolean }): TaskColumnKey[] {
-  const on = new Set<TaskColumnKey>(['status', 'priority', 'due']);
+/** Resolve the ordered list of columns from the built-in toggles + custom defs. */
+export function resolveColumns(opts: {
+  project?: boolean;
+  type?: boolean;
+  category?: boolean;
+  custom?: TaskColumn[];
+}): ResolvedColumn[] {
+  const on = new Set<BuiltInColumnKey>(['status', 'priority', 'due']);
   if (opts.project) on.add('project');
   if (opts.type) on.add('type');
   if (opts.category) on.add('category');
-  return COLUMN_ORDER.filter((c) => on.has(c));
+  const builtins: ResolvedColumn[] = BUILTIN_ORDER.filter((c) => on.has(c)).map((key) => ({ kind: 'builtin', key }));
+  const custom: ResolvedColumn[] = (opts.custom ?? []).map((def) => ({ kind: 'custom', def }));
+  return [...builtins, ...custom];
 }
 
-/** CSS grid template for a header/task row rendering the given value columns. */
-export function gridFor(columns: TaskColumnKey[]): string {
-  return ['26px', '22px', 'minmax(0,1fr)', ...columns.map((c) => COLUMN_WIDTH[c]), '30px'].join(' ');
+/** CSS grid template for a header/task row rendering the given columns. */
+export function gridFor(columns: ResolvedColumn[]): string {
+  const widths = columns.map((c) => (c.kind === 'builtin' ? BUILTIN_WIDTH[c.key] : `${c.def.width}px`));
+  return ['26px', '22px', 'minmax(0,1fr)', ...widths, '30px'].join(' ');
+}
+
+/** Header label for a column. */
+export function columnLabel(c: ResolvedColumn): string {
+  return c.kind === 'builtin' ? BUILTIN_LABEL[c.key] : c.def.name;
+}
+
+/** Stable React key for a column. */
+export function columnReactKey(c: ResolvedColumn): string {
+  return c.kind === 'builtin' ? c.key : `c:${c.def.id}`;
 }
 
 /** Count of tasks per status (only statuses that appear), for the summary strip. */

@@ -13,17 +13,18 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { Task, Project } from '@/types';
-import { TaskColumnKey } from '@/lib/pm';
+import { ResolvedColumn } from '@/lib/pm';
 import { TaskRow } from './TaskRow';
 import { QuickAddRow } from './QuickAddRow';
 import { ColumnHeaderRow, StatusSummaryBar } from './boardShared';
 
 interface FlatTaskListProps {
   tasks: Task[];
-  columns: TaskColumnKey[];
+  columns: ResolvedColumn[];
   projectsById: Map<string, Project>;
   categories: string[];
   typeOptions: string[];
+  onAddColumnOption: (columnId: string, option: string) => void;
   selectedTaskIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onEditTask: (task: Task) => void;
@@ -41,6 +42,7 @@ export function FlatTaskList({
   projectsById,
   categories,
   typeOptions,
+  onAddColumnOption,
   selectedTaskIds,
   onToggleSelect,
   onEditTask,
@@ -81,6 +83,7 @@ export function FlatTaskList({
                 categories={categories}
                 typeOptions={typeOptions}
                 projectsById={projectsById}
+                onAddColumnOption={onAddColumnOption}
                 selected={selectedTaskIds.has(task.id)}
                 onToggleSelect={onToggleSelect}
                 onEdit={onEditTask}

@@ -16,7 +16,7 @@ import {
   Archive,
   CheckSquare,
 } from 'lucide-react';
-import { Task, Project, EventColor } from '@/types';
+import { Task, Project, EventColor, CustomFieldType } from '@/types';
 import { useTasks, useCreateTask, useUpdateTask, useReorderTasks, useBulkUpdateTasks } from '@/hooks/useTasksQuery';
 import {
   useProjects,
@@ -26,6 +26,7 @@ import {
   useBulkUpdateProjects,
 } from '@/hooks/useProjectsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
+import { useTaskColumns, useCreateTaskColumn, useUpdateTaskColumn, useDeleteTaskColumn } from '@/hooks/useTaskColumnsQuery';
 import { TaskModal } from '@/components/modals/TaskModal';
 import { taskBucket, isActiveBoardTask, isDueThisWeek, resolveColumns } from '@/lib/pm';
 import { ProjectBoard } from './ProjectBoard';
@@ -58,6 +59,10 @@ export function ProjectsHub() {
   const { data: tasks = [] } = useTasks();
   const { data: projects = [] } = useProjects();
   const { data: planTypes = [] } = usePlanTypes();
+  const { data: customColumns = [] } = useTaskColumns();
+  const createColumn = useCreateTaskColumn();
+  const updateColumn = useUpdateTaskColumn();
+  const deleteColumn = useDeleteTaskColumn();
 
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
@@ -181,10 +186,11 @@ export function ProjectsHub() {
     () => [...new Set([...planTypes.map((pt) => pt.name), ...tasks.map((t) => t.linkedPlanType).filter((t): t is string => !!t)])].sort((a, b) => a.localeCompare(b)),
     [planTypes, tasks]
   );
-  // Project column auto-shows in the flat list (so you can still tell tasks apart).
+  // Project column auto-shows in the flat list (so you can still tell tasks apart);
+  // user-defined columns are appended after the built-ins.
   const columns = useMemo(
-    () => resolveColumns({ project: grouping === 'flat', type: extraCols.type, category: extraCols.category }),
-    [grouping, extraCols]
+    () => resolveColumns({ project: grouping === 'flat', type: extraCols.type, category: extraCols.category, custom: customColumns }),
+    [grouping, extraCols, customColumns]
   );
 
   // ---- Selection ----
@@ -279,6 +285,20 @@ export function ProjectsHub() {
   const handleArchiveProject = useCallback((id: string) => {
     updateProject.mutate({ id, updates: { archived: true } });
   }, [updateProject]);
+
+  // ---- Custom column handlers ----
+  const handleAddColumn = useCallback((input: { name: string; type: CustomFieldType; options: string[] }) => {
+    createColumn.mutate(input);
+  }, [createColumn]);
+  const handleDeleteColumn = useCallback((id: string) => {
+    deleteColumn.mutate(id);
+  }, [deleteColumn]);
+  // Persist a brand-new select option onto a custom column's definition.
+  const handleAddColumnOption = useCallback((columnId: string, option: string) => {
+    const col = customColumns.find((c) => c.id === columnId);
+    if (!col || col.options.includes(option)) return;
+    updateColumn.mutate({ id: columnId, updates: { options: [...col.options, option] } });
+  }, [customColumns, updateColumn]);
 
   const allCategories = useMemo(
     () => [...new Set(tasks.map((t) => t.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b)),
@@ -460,7 +480,13 @@ export function ProjectsHub() {
                       );
                     })}
                   </div>
-                  <ColumnsMenu enabled={extraCols} onToggle={toggleColumn} />
+                  <ColumnsMenu
+                    enabled={extraCols}
+                    onToggle={toggleColumn}
+                    customColumns={customColumns}
+                    onAddColumn={handleAddColumn}
+                    onDeleteColumn={handleDeleteColumn}
+                  />
                 </div>
               </div>
               {grouping === 'flat' ? (
@@ -470,6 +496,7 @@ export function ProjectsHub() {
                   projectsById={projectsById}
                   categories={allCategories}
                   typeOptions={typeOptions}
+                  onAddColumnOption={handleAddColumnOption}
                   selectedTaskIds={selectedTaskIds}
                   onToggleSelect={toggleSelect}
                   onEditTask={setEditingTask}
@@ -488,6 +515,7 @@ export function ProjectsHub() {
                   categories={allCategories}
                   typeOptions={typeOptions}
                   projectsById={projectsById}
+                  onAddColumnOption={handleAddColumnOption}
                   isCollapsed={isCollapsed}
                   onToggleCollapse={toggleCollapse}
                   selectedTaskIds={selectedTaskIds}

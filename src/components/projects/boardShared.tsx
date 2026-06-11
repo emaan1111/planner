@@ -2,10 +2,10 @@
 
 import clsx from 'clsx';
 import { Task } from '@/types';
-import { TaskColumnKey, COLUMN_LABEL, gridFor, STATUS_META, statusCounts } from '@/lib/pm';
+import { ResolvedColumn, columnLabel, columnReactKey, gridFor, STATUS_META, statusCounts } from '@/lib/pm';
 
 // Column header row that aligns with the task-row grid (monday Main Table).
-export function ColumnHeaderRow({ columns }: { columns: TaskColumnKey[] }) {
+export function ColumnHeaderRow({ columns }: { columns: ResolvedColumn[] }) {
   return (
     <div
       className="grid items-center gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-800/40 border-b border-gray-100 dark:border-gray-800 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
@@ -15,7 +15,7 @@ export function ColumnHeaderRow({ columns }: { columns: TaskColumnKey[] }) {
       <span />
       <span>Task</span>
       {columns.map((c) => (
-        <span key={c} className="text-center">{COLUMN_LABEL[c]}</span>
+        <span key={columnReactKey(c)} className="text-center truncate">{columnLabel(c)}</span>
       ))}
       <span />
     </div>

@@ -15,7 +15,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { ChevronRight, MoreVertical, Archive, Pencil, GripVertical } from 'lucide-react';
 import { Task, Project, colorClasses, EventColor } from '@/types';
-import { TaskColumnKey, projectProgress } from '@/lib/pm';
+import { ResolvedColumn, projectProgress } from '@/lib/pm';
 import { TaskRow } from './TaskRow';
 import { QuickAddRow } from './QuickAddRow';
 import { ColumnHeaderRow, StatusSummaryBar } from './boardShared';
@@ -31,10 +31,11 @@ export interface ProjectGroupProps {
   name: string;
   color: EventColor;
   tasks: Task[];
-  columns: TaskColumnKey[];
+  columns: ResolvedColumn[];
   categories?: string[];
   typeOptions?: string[];
   projectsById?: Map<string, Project>;
+  onAddColumnOption?: (columnId: string, option: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   selectedTaskIds: Set<string>;
@@ -57,6 +58,7 @@ export function ProjectGroup({
   categories,
   typeOptions,
   projectsById,
+  onAddColumnOption,
   collapsed,
   onToggleCollapse,
   selectedTaskIds,
@@ -155,6 +157,7 @@ export function ProjectGroup({
                     categories={categories}
                     typeOptions={typeOptions}
                     projectsById={projectsById}
+                    onAddColumnOption={onAddColumnOption}
                     selected={selectedTaskIds.has(task.id)}
                     onToggleSelect={onToggleSelect}
                     onEdit={onEditTask}
