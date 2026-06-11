@@ -10,6 +10,8 @@ import {
   Columns3,
   CalendarRange,
   Rows3,
+  List,
+  FolderTree,
   Plus,
   Archive,
   CheckSquare,
@@ -23,9 +25,12 @@ import {
   useReorderProjects,
   useBulkUpdateProjects,
 } from '@/hooks/useProjectsQuery';
+import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { TaskModal } from '@/components/modals/TaskModal';
-import { taskBucket, isActiveBoardTask, isDueThisWeek } from '@/lib/pm';
+import { taskBucket, isActiveBoardTask, isDueThisWeek, resolveColumns } from '@/lib/pm';
 import { ProjectBoard } from './ProjectBoard';
+import { FlatTaskList } from './FlatTaskList';
+import { ColumnsMenu } from './ColumnsMenu';
 import { KanbanView } from './KanbanView';
 import { CardsView } from './CardsView';
 import { TimelineView } from './TimelineView';
@@ -37,8 +42,10 @@ import { ProjectDetail } from './ProjectDetail';
 
 type ViewMode = 'board' | 'kanban' | 'cards' | 'timeline';
 type Scope = 'week' | 'all';
+type Grouping = 'project' | 'flat';
 
 const COLLAPSE_KEY = 'pm-collapsed-groups';
+const BOARD_PREFS_KEY = 'pm-board-prefs';
 
 const VIEWS: { id: ViewMode; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'board', label: 'Board', icon: Rows3 },
@@ -50,6 +57,7 @@ const VIEWS: { id: ViewMode; label: string; icon: typeof LayoutGrid }[] = [
 export function ProjectsHub() {
   const { data: tasks = [] } = useTasks();
   const { data: projects = [] } = useProjects();
+  const { data: planTypes = [] } = usePlanTypes();
 
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
@@ -62,6 +70,8 @@ export function ProjectsHub() {
 
   const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [scope, setScope] = useState<Scope>('all');
+  const [grouping, setGrouping] = useState<Grouping>('project');
+  const [extraCols, setExtraCols] = useState<{ type: boolean; category: boolean }>({ type: false, category: false });
   const [showArchived, setShowArchived] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -79,6 +89,33 @@ export function ProjectsHub() {
       if (raw) setCollapsed(new Set(JSON.parse(raw)));
     } catch {}
   }, []);
+
+  // Hydrate board list-view preferences (grouping + added columns).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(BOARD_PREFS_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw) as { grouping?: Grouping; type?: boolean; category?: boolean };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of persisted UI state
+      if (p.grouping === 'flat' || p.grouping === 'project') setGrouping(p.grouping);
+      setExtraCols({ type: !!p.type, category: !!p.category });
+    } catch {}
+  }, []);
+
+  const persistBoardPrefs = useCallback((next: { grouping: Grouping; type: boolean; category: boolean }) => {
+    try { localStorage.setItem(BOARD_PREFS_KEY, JSON.stringify(next)); } catch {}
+  }, []);
+  const changeGrouping = useCallback((g: Grouping) => {
+    setGrouping(g);
+    setExtraCols((cols) => { persistBoardPrefs({ grouping: g, ...cols }); return cols; });
+  }, [persistBoardPrefs]);
+  const toggleColumn = useCallback((key: 'type' | 'category') => {
+    setExtraCols((cols) => {
+      const next = { ...cols, [key]: !cols[key] };
+      setGrouping((g) => { persistBoardPrefs({ grouping: g, ...next }); return g; });
+      return next;
+    });
+  }, [persistBoardPrefs]);
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -137,6 +174,19 @@ export function ProjectsHub() {
     return activeProjects.filter((p) => (tasksByProject.get(p.id)?.length ?? 0) > 0);
   }, [scope, activeProjects, tasksByProject]);
 
+  // ---- List-view columns ----
+  const projectsById = useMemo(() => new Map(activeProjects.map((p) => [p.id, p])), [activeProjects]);
+  // Type column suggestions: configured plan types + any types already on tasks.
+  const typeOptions = useMemo(
+    () => [...new Set([...planTypes.map((pt) => pt.name), ...tasks.map((t) => t.linkedPlanType).filter((t): t is string => !!t)])].sort((a, b) => a.localeCompare(b)),
+    [planTypes, tasks]
+  );
+  // Project column auto-shows in the flat list (so you can still tell tasks apart).
+  const columns = useMemo(
+    () => resolveColumns({ project: grouping === 'flat', type: extraCols.type, category: extraCols.category }),
+    [grouping, extraCols]
+  );
+
   // ---- Selection ----
   const toggleSelect = useCallback((id: string) => {
     setSelectedTaskIds((prev) => {
@@ -162,12 +212,13 @@ export function ProjectsHub() {
 
   // Ids selectable from the board (everything currently rendered there).
   const boardSelectableIds = useMemo(() => {
+    if (grouping === 'flat') return boardTasks.map((t) => t.id);
     const ids: string[] = [];
     visibleProjects.forEach((p) => (tasksByProject.get(p.id) ?? []).forEach((t) => ids.push(t.id)));
     noProjectTasks.forEach((t) => ids.push(t.id));
     if (scope !== 'week') somedayTasks.forEach((t) => ids.push(t.id));
     return ids;
-  }, [visibleProjects, tasksByProject, noProjectTasks, somedayTasks, scope]);
+  }, [grouping, boardTasks, visibleProjects, tasksByProject, noProjectTasks, somedayTasks, scope]);
   const allBoardSelected = boardSelectableIds.length > 0 && boardSelectableIds.every((id) => selectedTaskIds.has(id));
   const toggleSelectAllBoard = useCallback(() => {
     setSelectedTaskIds((prev) => {
@@ -386,26 +437,72 @@ export function ProjectsHub() {
                 {selectedTaskIds.size > 0 && (
                   <span className="text-xs text-gray-400">{selectedTaskIds.size} selected</span>
                 )}
+
+                <div className="ml-auto flex items-center gap-2">
+                  {/* Group by project vs. flat list of all tasks */}
+                  <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    {([
+                      { id: 'project', label: 'By project', icon: FolderTree },
+                      { id: 'flat', label: 'All tasks', icon: List },
+                    ] as { id: Grouping; label: string; icon: typeof List }[]).map((g) => {
+                      const Icon = g.icon;
+                      return (
+                        <button
+                          key={g.id}
+                          onClick={() => changeGrouping(g.id)}
+                          className={clsx(
+                            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                            grouping === g.id ? 'bg-indigo-500 text-white' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          )}
+                        >
+                          <Icon className="w-3.5 h-3.5" /> {g.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <ColumnsMenu enabled={extraCols} onToggle={toggleColumn} />
+                </div>
               </div>
-              <ProjectBoard
-                projects={visibleProjects}
-                tasksByProject={tasksByProject}
-                noProjectTasks={noProjectTasks}
-                somedayTasks={scope === 'week' ? [] : somedayTasks}
-                isCollapsed={isCollapsed}
-                onToggleCollapse={toggleCollapse}
-                selectedTaskIds={selectedTaskIds}
-                onToggleSelect={toggleSelect}
-                onEditTask={setEditingTask}
-                onUpdateTask={handleUpdateTask}
-                onArchiveTask={handleArchiveTask}
-                onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
-                onAddTask={handleAddTask}
-                onArchiveProject={handleArchiveProject}
-                onEditProject={(p) => setProjectForm({ open: true, project: p })}
-                onReorderProjects={(orderedIds) => reorderProjects.mutate(orderedIds)}
-                onReviveTask={handleRevive}
-              />
+              {grouping === 'flat' ? (
+                <FlatTaskList
+                  tasks={boardTasks}
+                  columns={columns}
+                  projectsById={projectsById}
+                  categories={allCategories}
+                  typeOptions={typeOptions}
+                  selectedTaskIds={selectedTaskIds}
+                  onToggleSelect={toggleSelect}
+                  onEditTask={setEditingTask}
+                  onUpdateTask={handleUpdateTask}
+                  onArchiveTask={handleArchiveTask}
+                  onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
+                  onAddTask={(title) => handleAddTask(undefined, title)}
+                />
+              ) : (
+                <ProjectBoard
+                  projects={visibleProjects}
+                  tasksByProject={tasksByProject}
+                  noProjectTasks={noProjectTasks}
+                  somedayTasks={scope === 'week' ? [] : somedayTasks}
+                  columns={columns}
+                  categories={allCategories}
+                  typeOptions={typeOptions}
+                  projectsById={projectsById}
+                  isCollapsed={isCollapsed}
+                  onToggleCollapse={toggleCollapse}
+                  selectedTaskIds={selectedTaskIds}
+                  onToggleSelect={toggleSelect}
+                  onEditTask={setEditingTask}
+                  onUpdateTask={handleUpdateTask}
+                  onArchiveTask={handleArchiveTask}
+                  onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
+                  onAddTask={handleAddTask}
+                  onArchiveProject={handleArchiveProject}
+                  onEditProject={(p) => setProjectForm({ open: true, project: p })}
+                  onReorderProjects={(orderedIds) => reorderProjects.mutate(orderedIds)}
+                  onReviveTask={handleRevive}
+                />
+              )}
               </>
             ) : viewMode === 'kanban' ? (
               <KanbanView tasks={boardTasks} projects={activeProjects} onUpdateTask={handleUpdateTask} onEditTask={setEditingTask} />

@@ -4,13 +4,16 @@ import clsx from 'clsx';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Clock, Archive } from 'lucide-react';
-import { Task, EventColor, colorClasses } from '@/types';
-import { BOARD_GRID, DETAIL_GRID } from '@/lib/pm';
+import { Task, Project, EventColor, colorClasses } from '@/types';
+import { TaskColumnKey, gridFor } from '@/lib/pm';
 import { StatusPill, PriorityPill } from './Pills';
 import { CategoryPill } from './CategoryPill';
+import { TypePill } from './TypePill';
 
 export interface TaskRowProps {
   task: Task;
+  /** Ordered value columns to render between the title and the archive button. */
+  columns: TaskColumnKey[];
   accentColor?: EventColor;
   selected: boolean;
   onToggleSelect: (id: string) => void;
@@ -18,12 +21,17 @@ export interface TaskRowProps {
   onUpdate: (id: string, updates: Partial<Task>) => void;
   onArchive: (id: string) => void;
   isDragOverlay?: boolean;
-  /** When provided, render an editable Category column with these suggestions. */
+  /** Suggestions for the editable Category column. */
   categories?: string[];
+  /** Suggestions for the editable Type column. */
+  typeOptions?: string[];
+  /** Project lookup for the Project column (used in the flat/ungrouped list). */
+  projectsById?: Map<string, Project>;
 }
 
 export function TaskRow({
   task,
+  columns,
   accentColor,
   selected,
   onToggleSelect,
@@ -32,14 +40,73 @@ export function TaskRow({
   onArchive,
   isDragOverlay,
   categories,
+  typeOptions,
+  projectsById,
 }: TaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { task },
   });
-  const withCategory = categories !== undefined;
-  const style = { transform: CSS.Transform.toString(transform), transition, gridTemplateColumns: withCategory ? DETAIL_GRID : BOARD_GRID };
+  const style = { transform: CSS.Transform.toString(transform), transition, gridTemplateColumns: gridFor(columns) };
   const accent = accentColor ? colorClasses[accentColor] : null;
+
+  const renderCell = (col: TaskColumnKey) => {
+    switch (col) {
+      case 'project': {
+        const p = task.projectId ? projectsById?.get(task.projectId) : undefined;
+        const pc = p ? colorClasses[p.color] ?? colorClasses.blue : null;
+        return (
+          <div key={col} className="flex justify-center min-w-0">
+            {p && pc ? (
+              <span className={clsx('inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium max-w-full', pc.light, pc.text)}>
+                <span className={clsx('w-2 h-2 rounded-full flex-shrink-0', pc.bg)} />
+                <span className="truncate">{p.name}</span>
+              </span>
+            ) : (
+              <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+            )}
+          </div>
+        );
+      }
+      case 'type':
+        return (
+          <div key={col} className="flex justify-center min-w-0">
+            <TypePill value={task.linkedPlanType} options={typeOptions ?? []} onChange={(t) => onUpdate(task.id, { linkedPlanType: t })} />
+          </div>
+        );
+      case 'category':
+        return (
+          <div key={col} className="flex justify-center min-w-0">
+            <CategoryPill value={task.category} categories={categories ?? []} onChange={(c) => onUpdate(task.id, { category: c })} />
+          </div>
+        );
+      case 'status':
+        return (
+          <div key={col} className="flex justify-center">
+            <StatusPill status={task.status} onChange={(s) => onUpdate(task.id, { status: s })} fullWidth />
+          </div>
+        );
+      case 'priority':
+        return (
+          <div key={col} className="flex justify-center">
+            <PriorityPill priority={task.priority} onChange={(p) => onUpdate(task.id, { priority: p })} />
+          </div>
+        );
+      case 'due':
+        return (
+          <div key={col} className="flex justify-center">
+            {task.dueDate ? (
+              <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                <Clock className="w-3 h-3" />
+                {new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
+            ) : (
+              <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+            )}
+          </div>
+        );
+    }
+  };
 
   return (
     <div
@@ -83,34 +150,7 @@ export function TaskRow({
         {task.title}
       </button>
 
-      {/* category */}
-      {withCategory && (
-        <div className="flex justify-center min-w-0">
-          <CategoryPill value={task.category} categories={categories!} onChange={(c) => onUpdate(task.id, { category: c })} />
-        </div>
-      )}
-
-      {/* status */}
-      <div className="flex justify-center">
-        <StatusPill status={task.status} onChange={(s) => onUpdate(task.id, { status: s })} fullWidth />
-      </div>
-
-      {/* priority */}
-      <div className="flex justify-center">
-        <PriorityPill priority={task.priority} onChange={(p) => onUpdate(task.id, { priority: p })} />
-      </div>
-
-      {/* due */}
-      <div className="flex justify-center">
-        {task.dueDate ? (
-          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
-            <Clock className="w-3 h-3" />
-            {new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-          </span>
-        ) : (
-          <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
-        )}
-      </div>
+      {columns.map(renderCell)}
 
       {/* archive */}
       {!isDragOverlay ? (

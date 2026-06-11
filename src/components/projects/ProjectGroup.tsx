@@ -14,8 +14,8 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { ChevronRight, MoreVertical, Archive, Pencil, GripVertical } from 'lucide-react';
-import { Task, colorClasses, EventColor } from '@/types';
-import { projectProgress } from '@/lib/pm';
+import { Task, Project, colorClasses, EventColor } from '@/types';
+import { TaskColumnKey, projectProgress } from '@/lib/pm';
 import { TaskRow } from './TaskRow';
 import { QuickAddRow } from './QuickAddRow';
 import { ColumnHeaderRow, StatusSummaryBar } from './boardShared';
@@ -31,6 +31,10 @@ export interface ProjectGroupProps {
   name: string;
   color: EventColor;
   tasks: Task[];
+  columns: TaskColumnKey[];
+  categories?: string[];
+  typeOptions?: string[];
+  projectsById?: Map<string, Project>;
   collapsed: boolean;
   onToggleCollapse: () => void;
   selectedTaskIds: Set<string>;
@@ -49,6 +53,10 @@ export function ProjectGroup({
   name,
   color,
   tasks,
+  columns,
+  categories,
+  typeOptions,
+  projectsById,
   collapsed,
   onToggleCollapse,
   selectedTaskIds,
@@ -132,7 +140,7 @@ export function ProjectGroup({
       {/* Body */}
       {!collapsed && (
         <div>
-          {tasks.length > 0 && <ColumnHeaderRow />}
+          {tasks.length > 0 && <ColumnHeaderRow columns={columns} />}
           {tasks.length === 0 ? (
             <div className="px-8 py-3 text-xs text-gray-400 dark:text-gray-500">No tasks yet — add one below.</div>
           ) : (
@@ -142,7 +150,11 @@ export function ProjectGroup({
                   <TaskRow
                     key={task.id}
                     task={task}
+                    columns={columns}
                     accentColor={color}
+                    categories={categories}
+                    typeOptions={typeOptions}
+                    projectsById={projectsById}
                     selected={selectedTaskIds.has(task.id)}
                     onToggleSelect={onToggleSelect}
                     onEdit={onEditTask}
@@ -153,7 +165,7 @@ export function ProjectGroup({
               </SortableContext>
               <DragOverlay>
                 {activeTask ? (
-                  <TaskRow task={activeTask} accentColor={color} selected={false} onToggleSelect={() => {}} onEdit={() => {}} onUpdate={() => {}} onArchive={() => {}} isDragOverlay />
+                  <TaskRow task={activeTask} columns={columns} accentColor={color} categories={categories} typeOptions={typeOptions} projectsById={projectsById} selected={false} onToggleSelect={() => {}} onEdit={() => {}} onUpdate={() => {}} onArchive={() => {}} isDragOverlay />
                 ) : null}
               </DragOverlay>
             </DndContext>

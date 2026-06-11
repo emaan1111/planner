@@ -105,10 +105,54 @@ export function openCount(tasks: Task[]): number {
   return tasks.filter((t) => !t.archived && t.status !== 'done').length;
 }
 
-/** Shared CSS grid columns so the Main-Table header and task rows line up. */
-export const BOARD_GRID = '26px 22px minmax(0,1fr) 136px 92px 96px 30px';
-/** Same, plus a Category column (used inside a project's detail table). */
-export const DETAIL_GRID = '26px 22px minmax(0,1fr) 120px 136px 92px 96px 30px';
+// ---- Board list-view columns -------------------------------------------------
+// The list view renders a monday-style table. Status / Priority / Due are always
+// shown; Project / Type / Category are optional columns the user can add via the
+// "Columns" menu. A single ordered column list drives both the header and the
+// rows so everything stays aligned.
+
+export type TaskColumnKey = 'project' | 'type' | 'category' | 'status' | 'priority' | 'due';
+
+/** Optional columns the user can toggle on from the board's "Columns" menu. */
+export const ADDABLE_COLUMNS: { key: 'type' | 'category'; label: string }[] = [
+  { key: 'type', label: 'Type' },
+  { key: 'category', label: 'Category' },
+];
+
+export const COLUMN_LABEL: Record<TaskColumnKey, string> = {
+  project: 'Project',
+  type: 'Type',
+  category: 'Category',
+  status: 'Status',
+  priority: 'Priority',
+  due: 'Due',
+};
+
+const COLUMN_WIDTH: Record<TaskColumnKey, string> = {
+  project: '130px',
+  type: '120px',
+  category: '120px',
+  status: '136px',
+  priority: '92px',
+  due: '96px',
+};
+
+// Canonical left-to-right order of the value columns (between Task title + archive).
+const COLUMN_ORDER: TaskColumnKey[] = ['project', 'type', 'category', 'status', 'priority', 'due'];
+
+/** Resolve the ordered list of value columns from a set of toggles. */
+export function resolveColumns(opts: { project?: boolean; type?: boolean; category?: boolean }): TaskColumnKey[] {
+  const on = new Set<TaskColumnKey>(['status', 'priority', 'due']);
+  if (opts.project) on.add('project');
+  if (opts.type) on.add('type');
+  if (opts.category) on.add('category');
+  return COLUMN_ORDER.filter((c) => on.has(c));
+}
+
+/** CSS grid template for a header/task row rendering the given value columns. */
+export function gridFor(columns: TaskColumnKey[]): string {
+  return ['26px', '22px', 'minmax(0,1fr)', ...columns.map((c) => COLUMN_WIDTH[c]), '30px'].join(' ');
+}
 
 /** Count of tasks per status (only statuses that appear), for the summary strip. */
 export function statusCounts(tasks: Task[]): { status: TaskStatus; count: number }[] {

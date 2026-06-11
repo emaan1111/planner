@@ -12,6 +12,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task, Project } from '@/types';
+import { TaskColumnKey } from '@/lib/pm';
 import { ProjectGroup } from './ProjectGroup';
 import { SomedayGroup } from './SomedayGroup';
 
@@ -20,6 +21,10 @@ interface ProjectBoardProps {
   tasksByProject: Map<string, Task[]>;
   noProjectTasks: Task[];
   somedayTasks: Task[];
+  columns: TaskColumnKey[];
+  categories: string[];
+  typeOptions: string[];
+  projectsById: Map<string, Project>;
   isCollapsed: (id: string) => boolean;
   onToggleCollapse: (id: string) => void;
   selectedTaskIds: Set<string>;
@@ -50,6 +55,10 @@ export function ProjectBoard({
   tasksByProject,
   noProjectTasks,
   somedayTasks,
+  columns,
+  categories,
+  typeOptions,
+  projectsById,
   isCollapsed,
   onToggleCollapse,
   selectedTaskIds,
@@ -91,6 +100,10 @@ export function ProjectBoard({
                   name={project.name}
                   color={project.color}
                   tasks={tasksByProject.get(project.id) ?? []}
+                  columns={columns}
+                  categories={categories}
+                  typeOptions={typeOptions}
+                  projectsById={projectsById}
                   collapsed={isCollapsed(project.id)}
                   onToggleCollapse={() => onToggleCollapse(project.id)}
                   selectedTaskIds={selectedTaskIds}
@@ -117,6 +130,10 @@ export function ProjectBoard({
           name="No project"
           color="gray"
           tasks={noProjectTasks}
+          columns={columns}
+          categories={categories}
+          typeOptions={typeOptions}
+          projectsById={projectsById}
           collapsed={isCollapsed('__none__')}
           onToggleCollapse={() => onToggleCollapse('__none__')}
           selectedTaskIds={selectedTaskIds}

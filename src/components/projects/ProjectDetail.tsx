@@ -16,7 +16,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { ArrowLeft, Pencil, Archive, ListTodo, CheckCircle2, Layers } from 'lucide-react';
 import { Task, Project, EventColor, colorClasses } from '@/types';
-import { projectProgress, openCount, STATUS_ORDER, STATUS_META, PRIORITY_ORDER, PRIORITY_META } from '@/lib/pm';
+import { projectProgress, openCount, resolveColumns, STATUS_ORDER, STATUS_META, PRIORITY_ORDER, PRIORITY_META } from '@/lib/pm';
 import { TaskRow } from './TaskRow';
 import { QuickAddRow } from './QuickAddRow';
 import { ColumnHeaderRow, StatusSummaryBar } from './boardShared';
@@ -48,6 +48,9 @@ interface Group {
   override?: Partial<Task>;
   tasks: Task[];
 }
+
+// Project detail always shows the Category column alongside the core columns.
+const DETAIL_COLUMNS = resolveColumns({ category: true });
 
 const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'none', label: 'None' },
@@ -157,7 +160,7 @@ function TaskTable({
 
   return (
     <>
-      {tasks.length > 0 && <ColumnHeaderRow withCategory />}
+      {tasks.length > 0 && <ColumnHeaderRow columns={DETAIL_COLUMNS} />}
       {tasks.length === 0 ? (
         <div className="px-8 py-4 text-sm text-gray-400">No tasks here yet.</div>
       ) : (
@@ -167,6 +170,7 @@ function TaskTable({
               <TaskRow
                 key={task.id}
                 task={task}
+                columns={DETAIL_COLUMNS}
                 accentColor={accentColor}
                 categories={categories}
                 selected={selectedTaskIds.has(task.id)}
@@ -178,7 +182,7 @@ function TaskTable({
             ))}
           </SortableContext>
           <DragOverlay>
-            {activeTask ? <TaskRow task={activeTask} accentColor={accentColor} categories={categories} selected={false} onToggleSelect={() => {}} onEdit={() => {}} onUpdate={() => {}} onArchive={() => {}} isDragOverlay /> : null}
+            {activeTask ? <TaskRow task={activeTask} columns={DETAIL_COLUMNS} accentColor={accentColor} categories={categories} selected={false} onToggleSelect={() => {}} onEdit={() => {}} onUpdate={() => {}} onArchive={() => {}} isDragOverlay /> : null}
           </DragOverlay>
         </DndContext>
       )}
