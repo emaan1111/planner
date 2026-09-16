@@ -65,6 +65,13 @@ Optional env overrides:
 
 **Hitting 403 Forbidden?** It's almost always YouTube rate-limiting a big batch or an age/members-restricted video. The worker already retries with several player clients and backs off, but the reliable fix is to set `YT_DLP_COOKIES_FROM_BROWSER=chrome` (or your browser) so requests are authenticated. Keeping `yt-dlp` updated (`brew upgrade yt-dlp`) also matters, since YouTube changes frequently.
 
+### 🍃 Momentum (macOS) sync
+The **Momentum** edge-tab app (`/Volumes/WD/CODE/momentum`) shows today's planner tasks in its own card and writes ticks back, so both apps agree.
+
+- `GET /api/momentum/today?date=yyyy-MM-dd&tz=Area/City` — today's list, computed in the caller's time zone (`src/lib/momentum.ts`): open tasks that are **overdue**, **due today**, **Working on it**, or **scheduled** for today (start date today, or today inside the start→due window), plus tasks **finished today** so they show ticked. Someday-bucket and archived tasks are excluded. Ordered overdue → due → in progress → done, then by priority and board order.
+- Ticks go through the normal task API: `PUT /api/tasks/:id` with `{ "status": "done" }` (or the previous status to reopen); *Do tomorrow* sends `{ "dueDate": "…T00:00:00.000Z" }`.
+- In Momentum, ⋯ → **Planner** → *Planner address…* points it at `http://localhost:3000` (default) or the deployed URL.
+
 ## 🚀 Getting Started
 
 ### Prerequisites
