@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
         title: body.title,
         description: body.description,
         status: body.status ?? 'todo',
+        completedAt: body.status === 'done' ? new Date() : null,
         priority: body.priority ?? 'medium',
         bucket: body.bucket ?? 'active',
         archived: body.archived ?? false,

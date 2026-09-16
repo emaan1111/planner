@@ -45,6 +45,9 @@ model Task {
   title          String
   description    String?
   status         String   @default("todo") // todo, in-progress, scheduled, done, stuck
+  // When status last became done; cleared when it leaves done. updatedAt is
+  // not usable for this because reorders and bulk edits touch it too.
+  completedAt    DateTime?
   priority       String   @default("medium") // low, medium, high
   bucket         String   @default("active") // inbox | active | someday
   archived       Boolean  @default(false)

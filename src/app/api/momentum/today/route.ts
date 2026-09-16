@@ -8,11 +8,13 @@ export const dynamic = 'force-dynamic';
 //
 // Today's task list for the Momentum macOS app: open tasks that are overdue,
 // due today, being worked on, or scheduled for today, plus tasks completed
-// today (so a tick made in either app shows in both). `date` and `tz` come
-// from the Mac so "today" is the user's local day; both are optional.
+// today (Momentum hides those but counts them toward its daily ring). `date`
+// and `tz` come from the Mac so "today" is the user's local day; both are
+// optional.
 //
-// Momentum writes ticks back through the regular task API
-// (PUT /api/tasks/:id with { status }), so there is no separate write route.
+// Momentum writes through the regular task API (POST /api/tasks to add,
+// PUT /api/tasks/:id to tick, rename or move, DELETE to remove), so there is
+// no separate write route.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
       where: {
         archived: false,
         bucket: { not: 'someday' },
-        OR: [{ status: { not: 'done' } }, { updatedAt: { gte: since } }],
+        OR: [{ status: { not: 'done' } }, { completedAt: { gte: since } }],
       },
       include: { project: { select: { id: true, name: true, color: true } } },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],

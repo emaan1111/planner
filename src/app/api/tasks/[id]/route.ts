@@ -40,7 +40,16 @@ export async function PUT(
     const data: Record<string, unknown> = {};
     if ('title' in body) data.title = body.title;
     if ('description' in body) data.description = body.description;
-    if ('status' in body) data.status = body.status;
+    if ('status' in body) {
+      data.status = body.status;
+      if (body.status === 'done') {
+        // Stamp the completion time once; a repeat "done" keeps the original.
+        const current = await prisma.task.findUnique({ where: { id }, select: { status: true, completedAt: true } });
+        if (current?.status !== 'done' || !current.completedAt) data.completedAt = new Date();
+      } else {
+        data.completedAt = null;
+      }
+    }
     if ('priority' in body) data.priority = body.priority;
     if ('bucket' in body) data.bucket = body.bucket;
     if ('archived' in body) data.archived = body.archived;

@@ -57,7 +57,8 @@ export function isDayKey(s: string | null | undefined): s is string {
  *  - due:          open and due today
  *  - in-progress:  open with status "Working on it" (whatever the dates say)
  *  - scheduled:    open and starts today, or today falls inside its start..due window
- *  - done:         completed today (status done, last touched today) — shown ticked
+ *  - done:         completed today (status done with today's completedAt). Momentum counts these
+ *                  toward its ring but does not list them.
  */
 export function classifyForDay(task: TaskWithProject, day: string, tz: string): MomentumReason | null {
   if (task.archived || task.bucket === 'someday') return null;
@@ -65,7 +66,7 @@ export function classifyForDay(task: TaskWithProject, day: string, tz: string): 
   const start = task.startDate ? dayKeyInZone(task.startDate, tz) : null;
 
   if (task.status === 'done') {
-    return dayKeyInZone(task.updatedAt, tz) === day ? 'done' : null;
+    return task.completedAt && dayKeyInZone(task.completedAt, tz) === day ? 'done' : null;
   }
   if (due && due < day) return 'overdue';
   if (due === day) return 'due';

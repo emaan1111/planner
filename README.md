@@ -66,10 +66,11 @@ Optional env overrides:
 **Hitting 403 Forbidden?** It's almost always YouTube rate-limiting a big batch or an age/members-restricted video. The worker already retries with several player clients and backs off, but the reliable fix is to set `YT_DLP_COOKIES_FROM_BROWSER=chrome` (or your browser) so requests are authenticated. Keeping `yt-dlp` updated (`brew upgrade yt-dlp`) also matters, since YouTube changes frequently.
 
 ### 🍃 Momentum (macOS) sync
-The **Momentum** edge-tab app (`/Volumes/WD/CODE/momentum`) shows today's planner tasks in its own card and writes ticks back, so both apps agree.
+The **Momentum** edge-tab app (`/Volumes/WD/CODE/momentum`) shows today's planner tasks in its own card, writes ticks back, and creates the tasks typed into it here, so both apps agree.
 
-- `GET /api/momentum/today?date=yyyy-MM-dd&tz=Area/City` — today's list, computed in the caller's time zone (`src/lib/momentum.ts`): open tasks that are **overdue**, **due today**, **Working on it**, or **scheduled** for today (start date today, or today inside the start→due window), plus tasks **finished today** so they show ticked. Someday-bucket and archived tasks are excluded. Ordered overdue → due → in progress → done, then by priority and board order.
-- Ticks go through the normal task API: `PUT /api/tasks/:id` with `{ "status": "done" }` (or the previous status to reopen); *Do tomorrow* sends `{ "dueDate": "…T00:00:00.000Z" }`.
+- `GET /api/momentum/today?date=yyyy-MM-dd&tz=Area/City` — today's list, computed in the caller's time zone (`src/lib/momentum.ts`): open tasks that are **overdue**, **due today**, **Working on it**, or **scheduled** for today (start date today, or today inside the start→due window), plus tasks **finished today** (by `completedAt`) so Momentum can count them toward its ring — it lists them only behind its "n done" filter. Someday-bucket and archived tasks are excluded. Ordered overdue → due → in progress → done, then by priority and board order.
+- Writes use the normal task API: `PUT /api/tasks/:id` with `{ "status": "done" }` (or the previous status to reopen), `{ "title" }` to rename, `{ "dueDate": "…T00:00:00.000Z" }` for *Do tomorrow*; `POST /api/tasks` (inbox bucket, due today) for tasks added in Momentum; `DELETE /api/tasks/:id` to remove.
+- `Task.completedAt` is stamped when a task's status becomes `done` (single update, bulk action, or create) and cleared when it leaves `done`. It exists because `updatedAt` is also touched by reorders and bulk edits, which made old done tasks look freshly finished.
 - In Momentum, ⋯ → **Planner** → *Planner address…* points it at `http://localhost:3000` (default) or the deployed URL.
 
 ## 🚀 Getting Started

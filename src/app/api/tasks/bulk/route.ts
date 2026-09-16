@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
         title: t.title,
         description: t.description,
         status: t.status,
+        completedAt: t.completedAt,
         priority: t.priority,
         bucket: 'active',
         archived: false,
@@ -61,10 +62,19 @@ export async function POST(request: NextRequest) {
       case 'restore':
         data = { archived: false };
         break;
-      case 'setStatus':
+      case 'setStatus': {
         if (!value) return NextResponse.json({ error: 'value required for setStatus' }, { status: 400 });
-        data = { status: value };
+        if (value === 'done') {
+          // Only tasks that weren't done get a completion time; already-done ones keep theirs.
+          const result = await prisma.task.updateMany({
+            where: { id: { in: ids }, status: { not: 'done' } },
+            data: { status: 'done', completedAt: new Date() },
+          });
+          return NextResponse.json({ count: result.count });
+        }
+        data = { status: value, completedAt: null };
         break;
+      }
       case 'setPriority':
         if (!value) return NextResponse.json({ error: 'value required for setPriority' }, { status: 400 });
         data = { priority: value };
