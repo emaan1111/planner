@@ -17,7 +17,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { Task, Project, EventColor, CustomFieldType } from '@/types';
-import { useTasks, useCreateTask, useUpdateTask, useReorderTasks, useBulkUpdateTasks } from '@/hooks/useTasksQuery';
+import { useTasks, useCreateTask, useCreateTasksBatch, useUpdateTask, useReorderTasks, useBulkUpdateTasks, NewTaskInput } from '@/hooks/useTasksQuery';
 import {
   useProjects,
   useCreateProject,
@@ -65,6 +65,7 @@ export function ProjectsHub() {
   const deleteColumn = useDeleteTaskColumn();
 
   const createTask = useCreateTask();
+  const createTasksBatch = useCreateTasksBatch();
   const updateTask = useUpdateTask();
   const reorderTasks = useReorderTasks();
   const bulkTasks = useBulkUpdateTasks();
@@ -246,6 +247,21 @@ export function ProjectsHub() {
     createTask.mutate({ title, status: 'todo', priority: 'medium', bucket: 'inbox' });
   }, [createTask]);
 
+  // Multi-line entry: every line becomes its own task, created in one request.
+  const handleAddTasks = useCallback((projectId: string | undefined, titles: string[], overrides?: Partial<Task>) => {
+    if (titles.length === 0) return;
+    createTasksBatch.mutate(
+      titles.map((title): NewTaskInput => ({ title, status: 'todo', priority: 'medium', bucket: 'active', projectId, ...overrides }))
+    );
+  }, [createTasksBatch]);
+
+  const handleCaptureMany = useCallback((titles: string[]) => {
+    if (titles.length === 0) return;
+    createTasksBatch.mutate(
+      titles.map((title): NewTaskInput => ({ title, status: 'todo', priority: 'medium', bucket: 'inbox' }))
+    );
+  }, [createTasksBatch]);
+
   const handleUpdateTask = useCallback((id: string, updates: Partial<Task>) => {
     updateTask.mutate({ id, updates });
   }, [updateTask]);
@@ -411,6 +427,7 @@ export function ProjectsHub() {
             onArchiveTask={handleArchiveTask}
             onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
             onAddTask={(title, overrides) => handleAddTask(openProject.id, title, overrides)}
+            onAddTasks={(titles, overrides) => handleAddTasks(openProject.id, titles, overrides)}
             categories={allCategories}
             onToggleSelectAll={toggleSelectAllOf}
           />
@@ -423,6 +440,7 @@ export function ProjectsHub() {
               collapsed={inboxCollapsed}
               onToggleCollapse={() => setInboxCollapsed((v) => !v)}
               onCapture={handleCapture}
+              onCaptureMany={handleCaptureMany}
               onTriage={handleTriage}
               onSomeday={handleSomeday}
               onArchive={handleArchiveTask}
@@ -504,6 +522,7 @@ export function ProjectsHub() {
                   onArchiveTask={handleArchiveTask}
                   onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
                   onAddTask={(title) => handleAddTask(undefined, title)}
+                  onAddTasks={(titles) => handleAddTasks(undefined, titles)}
                 />
               ) : (
                 <ProjectBoard
@@ -525,6 +544,7 @@ export function ProjectsHub() {
                   onArchiveTask={handleArchiveTask}
                   onReorderTasks={(orderedIds) => reorderTasks.mutate(orderedIds)}
                   onAddTask={handleAddTask}
+                  onAddTasks={handleAddTasks}
                   onArchiveProject={handleArchiveProject}
                   onEditProject={(p) => setProjectForm({ open: true, project: p })}
                   onReorderProjects={(orderedIds) => reorderProjects.mutate(orderedIds)}

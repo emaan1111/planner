@@ -37,6 +37,7 @@ interface ProjectDetailProps {
   onArchiveTask: (id: string) => void;
   onReorderTasks: (orderedIds: string[]) => void;
   onAddTask: (title: string, overrides?: Partial<Task>) => void;
+  onAddTasks: (titles: string[], overrides?: Partial<Task>) => void;
   categories: string[];
   onToggleSelectAll: (ids: string[]) => void;
 }
@@ -133,6 +134,7 @@ function TaskTable({
   onArchiveTask,
   onReorderTasks,
   onAdd,
+  onAddMany,
 }: {
   tasks: Task[];
   accentColor: EventColor;
@@ -144,6 +146,7 @@ function TaskTable({
   onArchiveTask: (id: string) => void;
   onReorderTasks: (orderedIds: string[]) => void;
   onAdd: (title: string) => void;
+  onAddMany: (titles: string[]) => void;
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -186,7 +189,7 @@ function TaskTable({
           </DragOverlay>
         </DndContext>
       )}
-      <QuickAddRow onAdd={onAdd} />
+      <QuickAddRow onAdd={onAdd} onAddMany={onAddMany} />
       {tasks.length > 0 && (
         <div className="px-2.5 py-2 border-t border-gray-100 dark:border-gray-800">
           <StatusSummaryBar tasks={tasks} />
@@ -209,6 +212,7 @@ export function ProjectDetail({
   onArchiveTask,
   onReorderTasks,
   onAddTask,
+  onAddTasks,
   categories,
   onToggleSelectAll,
 }: ProjectDetailProps) {
@@ -309,7 +313,7 @@ export function ProjectDetail({
       {/* Tasks */}
       {groups === null ? (
         <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
-          <TaskTable {...tableProps} tasks={tasks} onAdd={(title) => onAddTask(title)} />
+          <TaskTable {...tableProps} tasks={tasks} onAdd={(title) => onAddTask(title)} onAddMany={(titles) => onAddTasks(titles)} />
         </div>
       ) : (
         <div className="space-y-3">
@@ -320,7 +324,7 @@ export function ProjectDetail({
                 <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200">{g.label}</h3>
                 <span className="text-xs text-gray-400">{g.tasks.length}</span>
               </div>
-              <TaskTable {...tableProps} tasks={g.tasks} onAdd={(title) => onAddTask(title, g.override)} />
+              <TaskTable {...tableProps} tasks={g.tasks} onAdd={(title) => onAddTask(title, g.override)} onAddMany={(titles) => onAddTasks(titles, g.override)} />
             </div>
           ))}
           {groups.length === 0 && <div className="py-10 text-center text-sm text-gray-400">No tasks to group yet.</div>}

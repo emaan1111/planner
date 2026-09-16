@@ -32,6 +32,7 @@ interface FlatTaskListProps {
   onArchiveTask: (id: string) => void;
   onReorderTasks: (orderedIds: string[]) => void;
   onAddTask: (title: string) => void;
+  onAddTasks: (titles: string[]) => void;
 }
 
 // A single, ungrouped table of every active task — the "All tasks" view that
@@ -50,6 +51,7 @@ export function FlatTaskList({
   onArchiveTask,
   onReorderTasks,
   onAddTask,
+  onAddTasks,
 }: FlatTaskListProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -99,7 +101,7 @@ export function FlatTaskList({
           </DragOverlay>
         </DndContext>
       )}
-      <QuickAddRow onAdd={onAddTask} />
+      <QuickAddRow onAdd={onAddTask} onAddMany={onAddTasks} />
       {tasks.length > 0 && (
         <div className="px-2.5 py-2 border-t border-gray-100 dark:border-gray-800">
           <StatusSummaryBar tasks={tasks} />

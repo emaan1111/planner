@@ -45,6 +45,7 @@ export interface ProjectGroupProps {
   onArchiveTask: (id: string) => void;
   onReorderTasks: (orderedIds: string[]) => void;
   onAddTask?: (title: string) => void;
+  onAddTasks?: (titles: string[]) => void;
   onArchiveProject?: () => void;
   onEditProject?: () => void;
   dragHandleProps?: DragHandleProps;
@@ -68,6 +69,7 @@ export function ProjectGroup({
   onArchiveTask,
   onReorderTasks,
   onAddTask,
+  onAddTasks,
   onArchiveProject,
   onEditProject,
   dragHandleProps,
@@ -173,7 +175,7 @@ export function ProjectGroup({
               </DragOverlay>
             </DndContext>
           )}
-          {onAddTask && <QuickAddRow onAdd={onAddTask} />}
+          {onAddTask && <QuickAddRow onAdd={onAddTask} onAddMany={onAddTasks} />}
           {tasks.length > 0 && (
             <div className="px-2.5 py-2 border-t border-gray-100 dark:border-gray-800">
               <StatusSummaryBar tasks={tasks} />

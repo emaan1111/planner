@@ -21,7 +21,19 @@ async function fetchTasks(): Promise<Task[]> {
   }));
 }
 
-async function createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'order'>): Promise<Task> {
+export type NewTaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'order'>;
+
+function hydrateTask(data: Task & { startDate?: string | Date; dueDate?: string | Date; createdAt: string | Date; updatedAt: string | Date }): Task {
+  return {
+    ...data,
+    startDate: data.startDate ? new Date(data.startDate) : undefined,
+    dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+    createdAt: new Date(data.createdAt),
+    updatedAt: new Date(data.updatedAt),
+  };
+}
+
+async function createTask(task: NewTaskInput): Promise<Task> {
   const response = await fetch('/api/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -36,6 +48,18 @@ async function createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'o
     createdAt: new Date(data.createdAt),
     updatedAt: new Date(data.updatedAt),
   };
+}
+
+// Create many tasks in one request (one per line of a typed/pasted list).
+async function createTasksBatch(tasks: NewTaskInput[]): Promise<Task[]> {
+  const response = await fetch('/api/tasks/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tasks }),
+  });
+  if (!response.ok) throw new Error('Failed to create tasks');
+  const data = await response.json();
+  return data.map(hydrateTask);
 }
 
 async function updateTask(id: string, updates: Partial<Task>): Promise<Task> {
@@ -167,6 +191,45 @@ export function useCreateTask() {
         queryClient.setQueryData(taskKeys.all, context.previousTasks);
       }
       toast.error(getErrorMessage(_error, 'Failed to create task'));
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+  });
+}
+
+// Hook to create several tasks at once (each line of a list becomes a task)
+export function useCreateTasksBatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createTasksBatch,
+    onMutate: async (newTasks) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.all });
+
+      const previousTasks = queryClient.getQueryData<Task[]>(taskKeys.all) ?? [];
+      // Append after the current last task so the optimistic rows keep their typed order.
+      const maxOrder = previousTasks.reduce((m, t) => Math.max(m, t.order ?? 0), -1);
+      const stamp = Date.now();
+      const optimisticTasks: Task[] = newTasks.map((t, i) => ({
+        ...t,
+        id: `temp-${stamp}-${i}`,
+        order: maxOrder + 1 + i,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      queryClient.setQueryData<Task[]>(taskKeys.all, [...previousTasks, ...optimisticTasks]);
+
+      return { previousTasks };
+    },
+    onSuccess: (created) => {
+      toast.success(`Added ${created.length} task${created.length === 1 ? '' : 's'}`);
+    },
+    onError: (error, _newTasks, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.all, context.previousTasks);
+      }
+      toast.error(getErrorMessage(error, 'Failed to create tasks'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });

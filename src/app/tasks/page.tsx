@@ -1,11 +1,13 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useReorderTasks } from '@/hooks/useTasksQuery';
+import { useTasks, useCreateTask, useCreateTasksBatch, useUpdateTask, useDeleteTask, useReorderTasks } from '@/hooks/useTasksQuery';
 import { useEvents } from '@/hooks/useEventsQuery';
 import { useProjects } from '@/hooks/useProjectsQuery';
 import { usePlanTypes } from '@/hooks/usePlanTypesQuery';
 import { Task } from '@/types';
+import { parseTaskLines } from '@/lib/taskLines';
+import { AutoGrowTextarea } from '@/components/docs/AutoGrowTextarea';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { TaskModal } from '@/components/modals/TaskModal';
 import Link from 'next/link';
@@ -172,6 +174,7 @@ export default function TasksPage() {
   const { data: planTypes = [] } = usePlanTypes();
   
   const createTaskMutation = useCreateTask();
+  const createTasksBatchMutation = useCreateTasksBatch();
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
   const reorderMutation = useReorderTasks();
@@ -242,18 +245,24 @@ export default function TasksPage() {
     setPwaPrompt(null);
   }, [pwaPrompt]);
 
+  // Several lines in the title box = several tasks sharing the same details.
+  // A single line is used verbatim (trimmed); multi-line input is cleaned per line.
+  const parsedTitles = parseTaskLines(newTitle);
+  const pendingTitles = parsedTitles.length > 1 ? parsedTitles : [newTitle.trim()].filter(Boolean);
+
   const handleAddTask = () => {
-    if (newTitle.trim()) {
-      addTask({
-        title: newTitle.trim(),
+    if (pendingTitles.length > 0) {
+      const shared = {
         description: newDescription.trim() || undefined,
-        status: 'todo',
+        status: 'todo' as const,
         priority: newPriority,
         dueDate: newDueDate ? new Date(newDueDate) : undefined,
         linkedPlanType: newPlanType || undefined,
         linkedEventId: newEventId || undefined,
         projectId: newProjectId || undefined,
-      });
+      };
+      if (pendingTitles.length === 1) addTask({ title: pendingTitles[0], ...shared });
+      else createTasksBatchMutation.mutate(pendingTitles.map((title) => ({ title, ...shared })));
       setNewTitle('');
       setNewDescription('');
       setNewPriority('medium');
@@ -771,14 +780,24 @@ export default function TasksPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Task Title *
                   </label>
-                  <input
-                    type="text"
+                  <AutoGrowTextarea
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="What needs to be done?"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        handleAddTask();
+                      }
+                    }}
+                    placeholder="What needs to be done? (one per line to add several)"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
                     autoFocus
                   />
+                  {pendingTitles.length > 1 && (
+                    <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
+                      {pendingTitles.length} tasks will be created, one per line, sharing the details below.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -883,7 +902,7 @@ export default function TasksPage() {
                   disabled={!newTitle.trim()}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 transition-opacity"
                 >
-                  Add Task
+                  {pendingTitles.length > 1 ? `Add ${pendingTitles.length} Tasks` : 'Add Task'}
                 </button>
               </div>
             </motion.div>

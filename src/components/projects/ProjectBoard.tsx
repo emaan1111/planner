@@ -35,6 +35,7 @@ interface ProjectBoardProps {
   onArchiveTask: (id: string) => void;
   onReorderTasks: (orderedIds: string[]) => void;
   onAddTask: (projectId: string | undefined, title: string) => void;
+  onAddTasks: (projectId: string | undefined, titles: string[]) => void;
   onArchiveProject: (id: string) => void;
   onEditProject: (project: Project) => void;
   onReorderProjects: (orderedIds: string[]) => void;
@@ -70,6 +71,7 @@ export function ProjectBoard({
   onArchiveTask,
   onReorderTasks,
   onAddTask,
+  onAddTasks,
   onArchiveProject,
   onEditProject,
   onReorderProjects,
@@ -116,6 +118,7 @@ export function ProjectBoard({
                   onArchiveTask={onArchiveTask}
                   onReorderTasks={onReorderTasks}
                   onAddTask={(title) => onAddTask(project.id, title)}
+                  onAddTasks={(titles) => onAddTasks(project.id, titles)}
                   onArchiveProject={() => onArchiveProject(project.id)}
                   onEditProject={() => onEditProject(project)}
                   dragHandleProps={activeId ? undefined : handle}
@@ -147,6 +150,7 @@ export function ProjectBoard({
           onArchiveTask={onArchiveTask}
           onReorderTasks={onReorderTasks}
           onAddTask={(title) => onAddTask(undefined, title)}
+          onAddTasks={(titles) => onAddTasks(undefined, titles)}
         />
       )}
 
